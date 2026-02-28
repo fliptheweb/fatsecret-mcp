@@ -1,0 +1,62 @@
+{
+  "name": "fatsecret-mcp",
+  "version": "0.0.1",
+  "description": "MCP server for FatSecret Platform API - food search, nutrition data, food diary, recipes, and weight tracking",
+  "author": "fliptheweb",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "bin": {
+    "fatsecret-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "auth": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write src/**/*.ts",
+    "type-check": "tsc --noEmit",
+    "generate": "tsx scripts/generate.ts"
+  },
+  "keywords": [
+    "mcp",
+    "fatsecret",
+    "nutrition",
+    "diet",
+    "food-diary",
+    "model-context-protocol",
+    "health",
+    "fitness",
+    "calories",
+    "recipes"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "openapi-fetch": "^0.17.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.44.1",
+    "@typescript-eslint/parser": "^8.44.1",
+    "eslint": "^9.36.0",
+    "globals": "^16.4.0",
+    "openapi-typescript": "^7.13.0",
+    "postman-to-openapi": "^1.7.3",
+    "prettier": "^3.6.2",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
