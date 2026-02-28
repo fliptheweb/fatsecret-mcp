@@ -68,6 +68,8 @@ Alternatively, you can pass credentials as environment variables:
    - **Client Secret** (OAuth 2.0 - for public food/recipe search)
    - **Consumer Secret** (OAuth 1.0 - for user profile/diary access)
 
+📖 Step-by-step guide: [Getting Started with FatSecret API](https://github.com/fatsecret-group/postman-fatsecret-apis)
+
 ### Claude Desktop (Extension)
 
 Download and open [fatsecret-mcp.mcpb](https://github.com/fliptheweb/fatsecret-mcp/releases/latest/download/fatsecret-mcp.mcpb) with Claude Desktop. You'll be prompted to enter your FatSecret credentials — secrets are stored securely in the OS keychain.
