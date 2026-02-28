@@ -5,6 +5,10 @@
   "author": "fliptheweb",
   "mcpName": "io.github.fliptheweb/fatsecret-mcp",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fliptheweb/fatsecret-mcp"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
