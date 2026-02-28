@@ -8,18 +8,19 @@ An MCP (Model Context Protocol) server that connects Claude/Cursor to the [FatSe
 
 **Available on NPM**: `npx fatsecret-mcp` | **Claude Desktop Extension**: [fatsecret-mcp.mcpb](https://github.com/fliptheweb/fatsecret-mcp/releases/latest/download/fatsecret-mcp.mcpb)
 
-## Features
+## ✨ Features
 
-- **Food Search** - Search FatSecret's extensive food database with detailed nutrition data
-- **Barcode Lookup** - Find foods by GTIN-13 barcode
-- **Recipe Search** - Browse and filter recipes by calories, macros, and prep time
-- **Food Diary** - Add, edit, copy, and delete food diary entries
-- **Saved Meals** - Create and manage reusable meal templates
-- **Weight Tracking** - Record and view weight history
-- **Exercise Tracking** - View exercises and manage activity entries
-- **Favorites** - Manage favorite foods and recipes
+- 🔐 **Authentication** — Interactive credential setup and OAuth authorization
+- 🔍 **Food Search** — Search FatSecret's extensive food database with detailed nutrition data
+- 📷 **Barcode Lookup** — Find foods by GTIN-13 barcode
+- 🍳 **Recipe Search** — Browse and filter recipes by calories, macros, and prep time
+- 📝 **Food Diary** — Add, edit, copy, and delete food diary entries
+- 🍽️ **Saved Meals** — Create and manage reusable meal templates
+- ⚖️ **Weight Tracking** — Record and view weight history
+- 🏃‍♂️ **Exercise Tracking** — View exercises and manage activity entries
+- ⭐ **Favorites** — Manage favorite foods and recipes
 
-## Quick Start
+## 🚀 Quick Start
 
 Add to your MCP client configuration:
 
@@ -58,14 +59,14 @@ Alternatively, you can pass credentials as environment variables:
 }
 ```
 
-### Where to Get Credentials
+### 🔑 Where to Get Credentials
 
 1. Create a free account at [platform.fatsecret.com](https://platform.fatsecret.com/)
 2. Navigate to **My Account → API Keys**
 3. You'll see three values:
    - **Client ID** (used for both OAuth 2.0 and OAuth 1.0)
    - **Client Secret** (OAuth 2.0 - for public food/recipe search)
-   - **Consumer Secret** (OAuth 1.0 - for user profile/diary access, **different** from Client Secret)
+   - **Consumer Secret** (OAuth 1.0 - for user profile/diary access)
 
 ### Claude Desktop (Extension)
 
@@ -101,36 +102,29 @@ Verify with `claude mcp list`.
 - **Project config** — add JSON to `.cursor/mcp.json` in your project root
 - **Global config** — add JSON to `~/.cursor/mcp.json`
 
-## Available Tools
-
-### Setup & Auth
+## 🛠️ Available Tools
 
 | Tool | Description |
 |------|-------------|
+| **🔐 Setup & Auth** | |
 | `check_auth_status` | Check if credentials and profile auth are configured. **Call this first.** |
-| `setup_credentials` | Save FatSecret API credentials (Client ID, Client Secret, Consumer Secret) to persistent config |
+| `setup_credentials` | Save FatSecret API credentials to persistent config |
 | `start_auth` | Start OAuth 1.0 authorization — returns URL for user to visit |
 | `complete_auth` | Complete OAuth with verifier PIN from authorization page |
-
-### Public API (OAuth 2.0 — no user auth needed)
-
-| Tool | Description |
-|------|-------------|
+| **🔍 Food Search** *(public)* | |
 | `search_foods` | Search the food database |
 | `get_food` | Get detailed nutrition info for a food |
 | `find_food_by_barcode` | Find food by GTIN-13 barcode |
 | `autocomplete_foods` | Get search autocomplete suggestions |
+| **🍳 Recipes** *(public)* | |
 | `search_recipes` | Search recipes with filters |
-| `get_recipe` | Get recipe details with ingredients |
+| `get_recipe` | Get recipe details with ingredients and directions |
+| **📚 Reference** *(public)* | |
 | `get_food_categories` | Get food categories |
 | `get_food_sub_categories` | Get food sub categories |
 | `get_brands` | Get food brands |
 | `get_recipe_types` | Get recipe types |
-
-### Food Diary (requires profile auth)
-
-| Tool | Description |
-|------|-------------|
+| **📝 Food Diary** *(profile auth)* | |
 | `get_food_entries` | Get food diary entries for a date |
 | `get_food_entries_month` | Get monthly nutrition summary (calories & macros per day) |
 | `create_food_entry` | Add a food diary entry |
@@ -138,11 +132,7 @@ Verify with `claude mcp list`.
 | `delete_food_entry` | Delete a food diary entry |
 | `copy_food_entries` | Copy entries from one date to another |
 | `copy_saved_meal_entries` | Copy a saved meal to a date |
-
-### Favorites (requires profile auth)
-
-| Tool | Description |
-|------|-------------|
+| **⭐ Favorites** *(profile auth)* | |
 | `get_favorite_foods` | Get favorite foods |
 | `delete_favorite_food` | Remove food from favorites |
 | `get_most_eaten_foods` | Get most eaten foods |
@@ -150,11 +140,7 @@ Verify with `claude mcp list`.
 | `get_favorite_recipes` | Get favorite recipes |
 | `add_favorite_recipe` | Add recipe to favorites |
 | `delete_favorite_recipe` | Remove recipe from favorites |
-
-### Saved Meals (requires profile auth)
-
-| Tool | Description |
-|------|-------------|
+| **🍽️ Saved Meals** *(profile auth)* | |
 | `get_saved_meals` | Get saved meals |
 | `create_saved_meal` | Create a saved meal |
 | `edit_saved_meal` | Edit a saved meal |
@@ -163,28 +149,21 @@ Verify with `claude mcp list`.
 | `add_saved_meal_item` | Add food to a saved meal |
 | `edit_saved_meal_item` | Edit saved meal item |
 | `delete_saved_meal_item` | Remove item from saved meal |
-
-### Weight & Exercise (requires profile auth)
-
-| Tool | Description |
-|------|-------------|
+| **⚖️ Weight** *(profile auth)* | |
 | `update_weight` | Record weight for a date |
 | `get_weight_month` | Get weight history for a month |
+| **🏃‍♂️ Exercise** *(profile auth)* | |
 | `get_exercises` | Get exercise types |
 | `edit_exercise_entries` | Shift exercise time between activities |
 | `get_exercise_entries_month` | Get exercise data for a month |
 | `save_exercise_template` | Save exercise template for weekdays |
-
-### Profile & Custom Food (requires profile auth)
-
-| Tool | Description |
-|------|-------------|
+| **👤 Profile** *(profile auth)* | |
 | `get_profile` | Get user profile info |
 | `create_food` | Create a custom food (Premier) |
 
 <sub>API reference: [FatSecret Postman Collection](https://www.postman.com/fatsecret/fatsecret-public-apis/)</sub>
 
-## Test Connection
+## 🧪 Test Connection
 
 ```bash
 npx fatsecret-mcp
@@ -196,13 +175,13 @@ Or with env vars:
 FATSECRET_CLIENT_ID='...' FATSECRET_CLIENT_SECRET='...' FATSECRET_CONSUMER_SECRET='...' npx fatsecret-mcp
 ```
 
-## Requirements
+## 📋 Requirements
 
 - Node.js 18+
 - FatSecret Platform API account ([platform.fatsecret.com](https://platform.fatsecret.com/))
 - MCP-compatible client (Claude Desktop, Cursor, etc.)
 
-## Development
+## 🔧 Development
 
 1. Clone the repository
 2. `npm install`
@@ -215,6 +194,6 @@ Debugging with MCP Inspector:
 FATSECRET_CLIENT_ID=X FATSECRET_CLIENT_SECRET=X FATSECRET_CONSUMER_SECRET=X npx -y @modelcontextprotocol/inspector npx <local-path>/fatsecret-mcp
 ```
 
-## License
+## 📄 License
 
 MIT License - see [LICENSE](LICENSE) file for details.
