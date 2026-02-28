@@ -111,19 +111,23 @@ Verify with `claude mcp list`.
 | `setup_credentials` | Save FatSecret API credentials to persistent config |
 | `start_auth` | Start OAuth 1.0 authorization — returns URL for user to visit |
 | `complete_auth` | Complete OAuth with verifier PIN from authorization page |
+| | |
 | **🔍 Food Search** *(public)* | |
 | `search_foods` | Search the food database |
 | `get_food` | Get detailed nutrition info for a food |
 | `find_food_by_barcode` | Find food by GTIN-13 barcode |
 | `autocomplete_foods` | Get search autocomplete suggestions |
+| | |
 | **🍳 Recipes** *(public)* | |
 | `search_recipes` | Search recipes with filters |
 | `get_recipe` | Get recipe details with ingredients and directions |
+| | |
 | **📚 Reference** *(public)* | |
 | `get_food_categories` | Get food categories |
 | `get_food_sub_categories` | Get food sub categories |
 | `get_brands` | Get food brands |
 | `get_recipe_types` | Get recipe types |
+| | |
 | **📝 Food Diary** *(profile auth)* | |
 | `get_food_entries` | Get food diary entries for a date |
 | `get_food_entries_month` | Get monthly nutrition summary (calories & macros per day) |
@@ -132,6 +136,7 @@ Verify with `claude mcp list`.
 | `delete_food_entry` | Delete a food diary entry |
 | `copy_food_entries` | Copy entries from one date to another |
 | `copy_saved_meal_entries` | Copy a saved meal to a date |
+| | |
 | **⭐ Favorites** *(profile auth)* | |
 | `get_favorite_foods` | Get favorite foods |
 | `delete_favorite_food` | Remove food from favorites |
@@ -140,6 +145,7 @@ Verify with `claude mcp list`.
 | `get_favorite_recipes` | Get favorite recipes |
 | `add_favorite_recipe` | Add recipe to favorites |
 | `delete_favorite_recipe` | Remove recipe from favorites |
+| | |
 | **🍽️ Saved Meals** *(profile auth)* | |
 | `get_saved_meals` | Get saved meals |
 | `create_saved_meal` | Create a saved meal |
@@ -149,14 +155,17 @@ Verify with `claude mcp list`.
 | `add_saved_meal_item` | Add food to a saved meal |
 | `edit_saved_meal_item` | Edit saved meal item |
 | `delete_saved_meal_item` | Remove item from saved meal |
+| | |
 | **⚖️ Weight** *(profile auth)* | |
 | `update_weight` | Record weight for a date |
 | `get_weight_month` | Get weight history for a month |
+| | |
 | **🏃‍♂️ Exercise** *(profile auth)* | |
 | `get_exercises` | Get exercise types |
 | `edit_exercise_entries` | Shift exercise time between activities |
 | `get_exercise_entries_month` | Get exercise data for a month |
 | `save_exercise_template` | Save exercise template for weekdays |
+| | |
 | **👤 Profile** *(profile auth)* | |
 | `get_profile` | Get user profile info |
 | `create_food` | Create a custom food (Premier) |
