@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.3",
   "name": "fatsecret-mcp",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "MCP server for FatSecret Platform API - food search, nutrition data, food diary, recipes, and weight tracking",
   "author": {
     "name": "fliptheweb"
