@@ -86,12 +86,11 @@ export function buildOAuth1Params(
 export async function requestToken(
   credentials: OAuth1Credentials,
 ): Promise<OAuth1RequestTokenResult> {
-  const params = buildOAuth1Params('POST', REQUEST_TOKEN_URL, credentials, { oauth_callback: 'oob' });
+  const params = buildOAuth1Params('GET', REQUEST_TOKEN_URL, credentials, { oauth_callback: 'oob' });
+  const qs = new URLSearchParams(params).toString();
 
-  const response = await fetch(REQUEST_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(params).toString(),
+  const response = await fetch(`${REQUEST_TOKEN_URL}?${qs}`, {
+    method: 'GET',
   });
 
   if (!response.ok) {

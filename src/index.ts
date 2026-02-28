@@ -178,6 +178,10 @@ class FatSecretMcpServer {
     }
 
     const merged = { ...existing, ...updates };
+    // Remove keys explicitly set to undefined
+    for (const key of Object.keys(merged) as (keyof Config)[]) {
+      if (merged[key] === undefined) delete merged[key];
+    }
     writeFileSync(this.getConfigPath(), JSON.stringify(merged, null, 2));
     console.error(`Saved config to ${this.getConfigPath()}`);
   }
@@ -931,7 +935,17 @@ class FatSecretMcpServer {
         this.oauth2Token = null;
         this.oauth2TokenExpiry = 0;
 
-        this.saveConfig({ clientId: client_id, clientSecret: client_secret, consumerSecret: consumer_secret });
+        // Clear stale OAuth tokens when credentials change
+        this.oauth1Credentials.accessToken = undefined;
+        this.oauth1Credentials.accessTokenSecret = undefined;
+
+        this.saveConfig({
+          clientId: client_id,
+          clientSecret: client_secret,
+          consumerSecret: consumer_secret,
+          accessToken: undefined,
+          accessTokenSecret: undefined,
+        });
 
         return text({
           message: 'Credentials saved! Public API tools (food search, recipes) are now available. ' +
@@ -950,7 +964,11 @@ class FatSecretMcpServer {
       },
       async () => {
         this.ensureApiCredentials();
-        const result = await requestToken(this.oauth1Credentials);
+        // Use only consumer key/secret for request token (no access tokens)
+        const result = await requestToken({
+          consumerKey: this.oauth1Credentials.consumerKey,
+          consumerSecret: this.oauth1Credentials.consumerSecret,
+        });
         this.pendingOAuth = { token: result.oauthToken, secret: result.oauthTokenSecret };
         return text({
           message: 'Visit the URL below to authorize the app, then use complete_auth with the verifier code.',
@@ -996,6 +1014,13 @@ class FatSecretMcpServer {
     console.error('FatSecret MCP server running on stdio');
   }
 }
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled rejection:', err);
+});
 
 const server = new FatSecretMcpServer();
 server.run().catch(console.error);
