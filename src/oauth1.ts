@@ -18,7 +18,7 @@ export interface OAuth1AccessTokenResult {
   accessTokenSecret: string;
 }
 
-const OAUTH1_BASE_URL = 'https://www.fatsecret.com/oauth';
+const OAUTH1_BASE_URL = 'https://authentication.fatsecret.com/oauth';
 const REQUEST_TOKEN_URL = `${OAUTH1_BASE_URL}/request_token`;
 const AUTHORIZE_URL = `${OAUTH1_BASE_URL}/authorize`;
 const ACCESS_TOKEN_URL = `${OAUTH1_BASE_URL}/access_token`;
@@ -54,12 +54,12 @@ function sign(
   return crypto.createHmac('sha1', key).update(baseString).digest('base64');
 }
 
-export function buildOAuth1Headers(
+export function buildOAuth1Params(
   method: string,
   url: string,
   credentials: OAuth1Credentials,
   extraParams: Record<string, string> = {},
-): string {
+): Record<string, string> {
   const oauthParams: Record<string, string> = {
     oauth_consumer_key: credentials.consumerKey,
     oauth_nonce: generateNonce(),
@@ -80,23 +80,18 @@ export function buildOAuth1Headers(
     credentials.accessTokenSecret || '',
   );
 
-  const headerParts = Object.keys(oauthParams)
-    .sort()
-    .map((k) => `${percentEncode(k)}="${percentEncode(oauthParams[k])}"`)
-    .join(', ');
-
-  return `OAuth ${headerParts}`;
+  return { ...oauthParams, ...extraParams };
 }
 
 export async function requestToken(
   credentials: OAuth1Credentials,
 ): Promise<OAuth1RequestTokenResult> {
-  const callbackParam = { oauth_callback: 'oob' };
-  const authHeader = buildOAuth1Headers('GET', REQUEST_TOKEN_URL, credentials, callbackParam);
+  const params = buildOAuth1Params('POST', REQUEST_TOKEN_URL, credentials, { oauth_callback: 'oob' });
 
-  const response = await fetch(`${REQUEST_TOKEN_URL}?oauth_callback=oob`, {
-    method: 'GET',
-    headers: { Authorization: authHeader },
+  const response = await fetch(REQUEST_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(params).toString(),
   });
 
   if (!response.ok) {
@@ -104,13 +99,13 @@ export async function requestToken(
     throw new Error(`Failed to get request token: ${response.status} ${text}`);
   }
 
-  const body = await response.text();
-  const params = new URLSearchParams(body);
-  const oauthToken = params.get('oauth_token');
-  const oauthTokenSecret = params.get('oauth_token_secret');
+  const responseBody = await response.text();
+  const responseParams = new URLSearchParams(responseBody);
+  const oauthToken = responseParams.get('oauth_token');
+  const oauthTokenSecret = responseParams.get('oauth_token_secret');
 
   if (!oauthToken || !oauthTokenSecret) {
-    throw new Error(`Invalid request token response: ${body}`);
+    throw new Error(`Invalid request token response: ${responseBody}`);
   }
 
   return {
@@ -132,12 +127,11 @@ export async function accessToken(
     accessTokenSecret: oauthTokenSecret,
   };
 
-  const extraParams = { oauth_verifier: verifier };
-  const authHeader = buildOAuth1Headers('GET', ACCESS_TOKEN_URL, tokenCredentials, extraParams);
+  const params = buildOAuth1Params('GET', ACCESS_TOKEN_URL, tokenCredentials, { oauth_verifier: verifier });
+  const qs = new URLSearchParams(params).toString();
 
-  const response = await fetch(`${ACCESS_TOKEN_URL}?oauth_verifier=${percentEncode(verifier)}`, {
+  const response = await fetch(`${ACCESS_TOKEN_URL}?${qs}`, {
     method: 'GET',
-    headers: { Authorization: authHeader },
   });
 
   if (!response.ok) {
@@ -145,13 +139,13 @@ export async function accessToken(
     throw new Error(`Failed to get access token: ${response.status} ${text}`);
   }
 
-  const body = await response.text();
-  const params = new URLSearchParams(body);
-  const accessTokenValue = params.get('oauth_token');
-  const accessTokenSecretValue = params.get('oauth_token_secret');
+  const responseBody = await response.text();
+  const responseParams = new URLSearchParams(responseBody);
+  const accessTokenValue = responseParams.get('oauth_token');
+  const accessTokenSecretValue = responseParams.get('oauth_token_secret');
 
   if (!accessTokenValue || !accessTokenSecretValue) {
-    throw new Error(`Invalid access token response: ${body}`);
+    throw new Error(`Invalid access token response: ${responseBody}`);
   }
 
   return {

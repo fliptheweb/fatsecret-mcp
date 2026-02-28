@@ -37,7 +37,7 @@ for (const file of ['schemas/public-api.yaml', 'schemas/profile-api.yaml']) {
   const path = join(ROOT, file);
   let content = readFileSync(path, 'utf-8');
   content = content.replace(/url: undefined:\/\/\{\{base_url_path\}\}/g, 'url: https://platform.fatsecret.com/rest');
-  content = content.replace(/url: undefined:\/\/\{\{oauth1_url\}\}/g, 'url: https://www.fatsecret.com/oauth');
+  content = content.replace(/url: undefined:\/\/\{\{oauth1_url\}\}/g, 'url: https://authentication.fatsecret.com/oauth');
   writeFileSync(path, content);
 }
 console.log('✅ Base URLs fixed');
@@ -47,8 +47,26 @@ console.log('\n🔨 Step 4: Generating TypeScript types...');
 run('npx openapi-typescript schemas/public-api.yaml -o src/generated/public-api.d.ts');
 run('npx openapi-typescript schemas/profile-api.yaml -o src/generated/profile-api.d.ts');
 
-// Step 5: Add generation banner with source and date
-console.log('\n📝 Step 5: Adding generation banner...');
+// Step 5: Generate Zod schemas from OpenAPI
+console.log('\n🔨 Step 5: Generating Zod schemas...');
+run('npx typed-openapi schemas/public-api.yaml -o src/generated/public-api.zod.ts -r zod');
+run('npx typed-openapi schemas/profile-api.yaml -o src/generated/profile-api.zod.ts -r zod');
+
+// Strip utility types (ApiClient, EndpointByMethod etc.) — they have Zod version compat issues
+for (const file of ['src/generated/public-api.zod.ts', 'src/generated/profile-api.zod.ts']) {
+  const path = join(ROOT, file);
+  let content = readFileSync(path, 'utf-8');
+  const marker = '// <EndpointByMethod>';
+  const idx = content.indexOf(marker);
+  if (idx !== -1) {
+    content = content.substring(0, idx);
+    writeFileSync(path, content);
+  }
+}
+console.log('✅ Zod schemas generated');
+
+// Step 6: Add generation banner with source and date
+console.log('\n📝 Step 6: Adding generation banner...');
 const generatedAt = new Date().toISOString().split('T')[0];
 const banner = (name: string) =>
   `/**\n` +

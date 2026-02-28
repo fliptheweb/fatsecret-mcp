@@ -1,0 +1,91 @@
+{
+  "manifest_version": "0.3",
+  "name": "fatsecret-mcp",
+  "version": "0.0.1",
+  "description": "MCP server for FatSecret Platform API - food search, nutrition data, food diary, recipes, and weight tracking",
+  "author": {
+    "name": "fliptheweb"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["server/index.js"],
+      "env": {
+        "FATSECRET_CLIENT_ID": "${user_config.FATSECRET_CLIENT_ID}",
+        "FATSECRET_CLIENT_SECRET": "${user_config.FATSECRET_CLIENT_SECRET}",
+        "FATSECRET_CONSUMER_SECRET": "${user_config.FATSECRET_CONSUMER_SECRET}"
+      }
+    }
+  },
+  "tools": [
+    { "name": "search_foods", "description": "Search the FatSecret food database" },
+    { "name": "get_food", "description": "Get detailed nutritional info for a food" },
+    { "name": "find_food_by_barcode", "description": "Find food by barcode (GTIN-13)" },
+    { "name": "autocomplete_foods", "description": "Get food search autocomplete suggestions" },
+    { "name": "search_recipes", "description": "Search recipes with nutrition filters" },
+    { "name": "get_recipe", "description": "Get detailed recipe with ingredients and directions" },
+    { "name": "get_food_categories", "description": "Get food categories list" },
+    { "name": "get_food_sub_categories", "description": "Get food sub categories" },
+    { "name": "get_brands", "description": "Get food brands list" },
+    { "name": "get_recipe_types", "description": "Get recipe type names" },
+    { "name": "get_food_entries", "description": "Get food diary entries for a date" },
+    { "name": "get_food_entries_month", "description": "Get monthly nutrition summary" },
+    { "name": "create_food_entry", "description": "Add a food diary entry" },
+    { "name": "edit_food_entry", "description": "Edit a food diary entry" },
+    { "name": "delete_food_entry", "description": "Delete a food diary entry" },
+    { "name": "copy_food_entries", "description": "Copy food entries between dates" },
+    { "name": "copy_saved_meal_entries", "description": "Copy saved meal to a date" },
+    { "name": "get_favorite_foods", "description": "Get favorite foods" },
+    { "name": "delete_favorite_food", "description": "Remove food from favorites" },
+    { "name": "get_most_eaten_foods", "description": "Get most eaten foods" },
+    { "name": "get_recently_eaten_foods", "description": "Get recently eaten foods" },
+    { "name": "get_favorite_recipes", "description": "Get favorite recipes" },
+    { "name": "add_favorite_recipe", "description": "Add recipe to favorites" },
+    { "name": "delete_favorite_recipe", "description": "Remove recipe from favorites" },
+    { "name": "get_saved_meals", "description": "Get saved meals" },
+    { "name": "create_saved_meal", "description": "Create a saved meal" },
+    { "name": "edit_saved_meal", "description": "Edit a saved meal" },
+    { "name": "delete_saved_meal", "description": "Delete a saved meal" },
+    { "name": "get_saved_meal_items", "description": "Get items in a saved meal" },
+    { "name": "add_saved_meal_item", "description": "Add food to a saved meal" },
+    { "name": "edit_saved_meal_item", "description": "Edit saved meal item" },
+    { "name": "delete_saved_meal_item", "description": "Remove item from saved meal" },
+    { "name": "update_weight", "description": "Record weight for a date" },
+    { "name": "get_weight_month", "description": "Get weight entries for a month" },
+    { "name": "get_exercises", "description": "Get exercise types list" },
+    { "name": "edit_exercise_entries", "description": "Shift exercise time between activities" },
+    { "name": "get_exercise_entries_month", "description": "Get exercise data for a month" },
+    { "name": "save_exercise_template", "description": "Save exercise template for weekdays" },
+    { "name": "get_profile", "description": "Get user profile info" },
+    { "name": "create_food", "description": "Create a custom food" },
+    { "name": "setup_credentials", "description": "Configure FatSecret API credentials" },
+    { "name": "start_auth", "description": "Start OAuth 1.0 authorization for profile access" },
+    { "name": "complete_auth", "description": "Complete OAuth with verifier code" },
+    { "name": "check_auth_status", "description": "Check profile authentication status" }
+  ],
+  "user_config": {
+    "FATSECRET_CLIENT_ID": {
+      "title": "Client ID",
+      "description": "FatSecret API Client ID (from platform.fatsecret.com)",
+      "type": "string",
+      "required": true,
+      "sensitive": false
+    },
+    "FATSECRET_CLIENT_SECRET": {
+      "title": "Client Secret",
+      "description": "FatSecret API Client Secret (OAuth 2.0)",
+      "type": "string",
+      "required": true,
+      "sensitive": true
+    },
+    "FATSECRET_CONSUMER_SECRET": {
+      "title": "Consumer Secret",
+      "description": "FatSecret API Consumer Secret (OAuth 1.0, different from Client Secret)",
+      "type": "string",
+      "required": true,
+      "sensitive": true
+    }
+  }
+}

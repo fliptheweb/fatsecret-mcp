@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "description": "MCP server for FatSecret Platform API - food search, nutrition data, food diary, recipes, and weight tracking",
   "author": "fliptheweb",
+  "mcpName": "io.github.fliptheweb/fatsecret-mcp",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -19,13 +20,13 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
-    "auth": "tsx src/cli.ts",
     "prepublishOnly": "npm run build",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/**/*.ts",
     "type-check": "tsc --noEmit",
-    "generate": "tsx scripts/generate.ts"
+    "generate": "tsx scripts/generate.ts",
+    "version": "node scripts/bump-version.cjs && git add manifest.json server.json"
   },
   "keywords": [
     "mcp",
@@ -57,6 +58,7 @@
     "postman-to-openapi": "^1.7.3",
     "prettier": "^3.6.2",
     "tsx": "^4.0.0",
-    "typescript": "^5.0.0"
+    "typed-openapi": "^2.2.4",
+    "typescript": "~5.7.0"
   }
 }

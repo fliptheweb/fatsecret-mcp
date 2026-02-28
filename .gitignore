@@ -5,3 +5,9 @@ dist/
 .DS_Store
 schemas/*
 !schemas/.gitkeep
+tsconfig.tsbuildinfo
+
+# AI files
+.claude/
+.mcpregistry_github_token
+.mcpregistry_registry_token

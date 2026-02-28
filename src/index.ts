@@ -2,11 +2,14 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { createRequire } from 'node:module';
-import { buildOAuth1Headers, requestToken, accessToken, type OAuth1Credentials } from './oauth1.js';
+import createClient, { type Middleware } from 'openapi-fetch';
+import type { paths as PublicPaths } from './generated/public-api.js';
+import type { paths as ProfilePaths } from './generated/profile-api.js';
+import { buildOAuth1Params, requestToken, accessToken, type OAuth1Credentials } from './oauth1.js';
 import * as schemas from './schemas.js';
 
 const require = createRequire(import.meta.url);
@@ -28,35 +31,85 @@ function text(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
 }
 
+// ── Config ──
+
+interface Config {
+  clientId?: string;
+  clientSecret?: string;
+  consumerSecret?: string;
+  accessToken?: string;
+  accessTokenSecret?: string;
+}
+
 // ── Server ──
 
 class FatSecretMcpServer {
   private server: McpServer;
-  private clientId: string;
-  private clientSecret: string;
+  private clientId = '';
+  private clientSecret = '';
 
   private oauth2Token: string | null = null;
   private oauth2TokenExpiry = 0;
+
+  private publicClient: ReturnType<typeof createClient<PublicPaths>>;
+  private profileClient: ReturnType<typeof createClient<ProfilePaths>>;
 
   private oauth1Credentials: OAuth1Credentials;
   private pendingOAuth: { token: string; secret: string } | null = null;
 
   constructor() {
-    this.clientId = process.env.FATSECRET_CLIENT_ID || '';
-    this.clientSecret = process.env.FATSECRET_CLIENT_SECRET || '';
+    this.oauth1Credentials = { consumerKey: '', consumerSecret: '' };
 
-    if (!this.clientId || !this.clientSecret) {
-      console.error('Missing FATSECRET_CLIENT_ID or FATSECRET_CLIENT_SECRET environment variables');
-      process.exit(1);
-    }
+    // Load config: persistent file first, env vars override
+    this.loadConfig();
 
-    this.oauth1Credentials = {
-      consumerKey: this.clientId,
-      consumerSecret: this.clientSecret,
+    // Public API client with OAuth 2.0
+    this.publicClient = createClient<PublicPaths>({ baseUrl: BASE_URL });
+    const oauth2Middleware: Middleware = {
+      onRequest: async ({ request }) => {
+        const token = await this.getOAuth2Token();
+        request.headers.set('Authorization', `Bearer ${token}`);
+        return request;
+      },
     };
-    this.loadOAuth1Tokens();
+    this.publicClient.use(oauth2Middleware);
 
-    this.server = new McpServer({ name: 'fatsecret-mcp', version });
+    // Profile API client with OAuth 1.0 (params in query string, not Authorization header)
+    this.profileClient = createClient<ProfilePaths>({ baseUrl: BASE_URL });
+    const oauth1Middleware: Middleware = {
+      onRequest: async ({ request }) => {
+        this.ensureProfileAuth();
+        const url = new URL(request.url);
+        const existingParams: Record<string, string> = {};
+        url.searchParams.forEach((v, k) => { existingParams[k] = v; });
+        const allParams = buildOAuth1Params(request.method, `${url.origin}${url.pathname}`, this.oauth1Credentials, existingParams);
+        url.search = new URLSearchParams(allParams).toString();
+        return new Request(url.toString(), request);
+      },
+    };
+    this.profileClient.use(oauth1Middleware);
+
+    this.server = new McpServer(
+      { name: 'fatsecret-mcp', version },
+      {
+        instructions: [
+          'FatSecret MCP server provides two levels of access:',
+          '',
+          '1. SETUP: If API credentials are not configured, call check_auth_status first.',
+          '   It will tell you if credentials are missing and guide through setup_credentials.',
+          '   Get credentials at https://platform.fatsecret.com/ → My Account → API Keys.',
+          '',
+          '2. PUBLIC API (works after setup): Food search, recipes, brands, categories.',
+          '   These tools use OAuth 2.0 with the configured Client ID and Client Secret.',
+          '',
+          '3. PROFILE API (requires user authorization): Food diary, saved meals, favorites, weight, exercises, profile.',
+          '   These tools require OAuth 1.0 user authorization. Before using any profile tool,',
+          '   call check_auth_status to see if the user is authenticated.',
+          '   If not, guide them through: start_auth → user visits URL and authorizes → complete_auth with verifier PIN.',
+          '   All credentials and tokens persist across sessions in ~/.fatsecret-mcp/config.json.',
+        ].join('\n'),
+      },
+    );
 
     this.registerPublicFoodTools();
     this.registerPublicRecipeTools();
@@ -70,9 +123,83 @@ class FatSecretMcpServer {
     this.registerAuthTools();
   }
 
+  // ── Config Management ──
+
+  private getConfigDir(): string {
+    return join(homedir(), '.fatsecret-mcp');
+  }
+
+  private getConfigPath(): string {
+    return join(this.getConfigDir(), 'config.json');
+  }
+
+  private loadConfig(): void {
+    // 1. Load from persistent config file
+    let fileConfig: Config = {};
+    try {
+      fileConfig = JSON.parse(readFileSync(this.getConfigPath(), 'utf-8')) as Config;
+      console.error(`Loaded config from ${this.getConfigPath()}`);
+    } catch {
+      console.error(`No config file at ${this.getConfigPath()}`);
+    }
+
+    // 2. Apply: env vars override config file
+    this.clientId = process.env.FATSECRET_CLIENT_ID || fileConfig.clientId || '';
+    this.clientSecret = process.env.FATSECRET_CLIENT_SECRET || fileConfig.clientSecret || '';
+    const consumerSecret = process.env.FATSECRET_CONSUMER_SECRET || fileConfig.consumerSecret || '';
+
+    this.oauth1Credentials = {
+      consumerKey: this.clientId,
+      consumerSecret,
+      accessToken: fileConfig.accessToken,
+      accessTokenSecret: fileConfig.accessTokenSecret,
+    };
+
+    // 3. Log credential sources
+    const src = (envKey: string, fileVal?: string) => {
+      if (process.env[envKey]) return `env(${envKey})`;
+      if (fileVal) return 'config file';
+      return 'not set';
+    };
+    console.error(`Credentials: clientId=${src('FATSECRET_CLIENT_ID', fileConfig.clientId)}, clientSecret=${src('FATSECRET_CLIENT_SECRET', fileConfig.clientSecret)}, consumerSecret=${src('FATSECRET_CONSUMER_SECRET', fileConfig.consumerSecret)}`);
+    console.error(`OAuth 1.0 tokens: ${fileConfig.accessToken ? 'loaded from config file' : 'not set'}`);
+  }
+
+  private saveConfig(updates: Partial<Config>): void {
+    const dir = this.getConfigDir();
+    mkdirSync(dir, { recursive: true });
+
+    // Read existing config, merge updates
+    let existing: Config = {};
+    try {
+      existing = JSON.parse(readFileSync(this.getConfigPath(), 'utf-8')) as Config;
+    } catch {
+      // No existing config
+    }
+
+    const merged = { ...existing, ...updates };
+    writeFileSync(this.getConfigPath(), JSON.stringify(merged, null, 2));
+    console.error(`Saved config to ${this.getConfigPath()}`);
+  }
+
+  private hasApiCredentials(): boolean {
+    return !!(this.clientId && this.clientSecret && this.oauth1Credentials.consumerSecret);
+  }
+
+  private ensureApiCredentials(): void {
+    if (!this.hasApiCredentials()) {
+      throw new Error(
+        'API credentials not configured. Use setup_credentials tool first. ' +
+        'Get your credentials at https://platform.fatsecret.com/ → My Account → API Keys.',
+      );
+    }
+  }
+
   // ── OAuth 2.0 Token ──
 
   private async getOAuth2Token(): Promise<string> {
+    this.ensureApiCredentials();
+
     if (this.oauth2Token && Date.now() < this.oauth2TokenExpiry) {
       return this.oauth2Token;
     }
@@ -84,7 +211,7 @@ class FatSecretMcpServer {
         grant_type: 'client_credentials',
         client_id: this.clientId,
         client_secret: this.clientSecret,
-        scope: 'premier basic',
+        scope: 'basic',
       }),
     });
 
@@ -99,39 +226,12 @@ class FatSecretMcpServer {
     return this.oauth2Token;
   }
 
-  // ── OAuth 1.0 Config ──
-
-  private getConfigDir(): string {
-    return join(homedir(), '.fatsecret-mcp');
-  }
-
-  private getConfigPath(): string {
-    return join(this.getConfigDir(), 'config.json');
-  }
-
-  private loadOAuth1Tokens(): void {
-    try {
-      const config = JSON.parse(readFileSync(this.getConfigPath(), 'utf-8'));
-      if (config.accessToken && config.accessTokenSecret) {
-        this.oauth1Credentials.accessToken = config.accessToken;
-        this.oauth1Credentials.accessTokenSecret = config.accessTokenSecret;
-      }
-    } catch {
-      // No config file yet
-    }
-  }
-
-  private saveOAuth1Tokens(token: string, tokenSecret: string): void {
-    const dir = this.getConfigDir();
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(this.getConfigPath(), JSON.stringify({ accessToken: token, accessTokenSecret: tokenSecret }, null, 2));
-    this.oauth1Credentials.accessToken = token;
-    this.oauth1Credentials.accessTokenSecret = tokenSecret;
-  }
-
   private ensureProfileAuth(): void {
+    this.ensureApiCredentials();
     if (!this.oauth1Credentials.accessToken || !this.oauth1Credentials.accessTokenSecret) {
-      throw new Error('Not authenticated for profile access. Use start_oauth_flow and complete_oauth_flow tools first.');
+      throw new Error(
+        'Not authenticated for profile access. Use check_auth_status to check, then start_auth and complete_auth to authorize.',
+      );
     }
   }
 
@@ -209,31 +309,9 @@ class FatSecretMcpServer {
         inputSchema: schemas.SearchRecipesInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
       },
-      async ({
-        calories_from, calories_to,
-        carb_percentage_from, carb_percentage_to,
-        protein_percentage_from, protein_percentage_to,
-        fat_percentage_from, fat_percentage_to,
-        prep_time_from, prep_time_to,
-        ...rest
-      }) => {
+      async (args) => {
         const { data } = await this.publicClient.GET('/recipes/search/v3', {
-          params: {
-            query: {
-              ...rest,
-              'calories.from': calories_from,
-              'calories.to': calories_to,
-              'carb_percentage.from': carb_percentage_from,
-              'carb_percentage.to': carb_percentage_to,
-              'protein_percentage.from': protein_percentage_from,
-              'protein_percentage.to': protein_percentage_to,
-              'fat_percentage.from': fat_percentage_from,
-              'fat_percentage.to': fat_percentage_to,
-              'prep_time.from': prep_time_from,
-              'prep_time.to': prep_time_to,
-              format: 'json',
-            },
-          },
+          params: { query: { ...args, format: 'json' } },
         });
         return text(data);
       },
@@ -325,13 +403,13 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'get_food_entries',
       {
-        description: 'Get food diary entries for a date or a specific entry by ID. Requires profile authentication.',
+        description: 'Get food diary entries for a date or a specific entry by ID. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.GetFoodEntriesInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
-      async ({ date, food_entry_id }) => {
+      async ({ date, ...rest }) => {
         const { data } = await this.profileClient.GET('/food-entries/v2', {
-          params: { query: { date: optionalDateToDays(date), food_entry_id, format: 'json' } },
+          params: { query: { ...rest, date: optionalDateToDays(date), format: 'json' } },
         });
         return text(data);
       },
@@ -340,7 +418,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'get_food_entries_month',
       {
-        description: 'Get daily nutrition summary for a month. Returns calories and macros per day.',
+        description: 'Get daily nutrition summary for a month. Returns calories and macros per day. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.GetFoodEntriesMonthInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
@@ -355,7 +433,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'create_food_entry',
       {
-        description: 'Add a food diary entry. Requires food_id, serving_id, and meal type.',
+        description: 'Add a food diary entry. Requires food_id, serving_id, and meal type. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.CreateFoodEntryInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: false },
       },
@@ -370,7 +448,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'edit_food_entry',
       {
-        description: 'Edit an existing food diary entry. Cannot change the date.',
+        description: 'Edit an existing food diary entry. Cannot change the date. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.EditFoodEntryInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: true },
       },
@@ -385,7 +463,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'delete_food_entry',
       {
-        description: 'Delete a food diary entry by ID.',
+        description: 'Delete a food diary entry by ID. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.DeleteFoodEntryInputSchema,
         annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
       },
@@ -400,17 +478,17 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'copy_food_entries',
       {
-        description: 'Copy food entries from one date to another, optionally filtered by meal.',
+        description: 'Copy food entries from one date to another, optionally filtered by meal. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.CopyFoodEntriesInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: false },
       },
-      async ({ from_date, to_date, meal }) => {
+      async ({ from_date, to_date, ...rest }) => {
         const { data } = await this.profileClient.POST('/food-entries/copy/v1', {
           params: {
             query: {
+              ...rest,
               from_date: dateToDays(from_date),
               to_date: dateToDays(to_date),
-              meal,
               format: 'json',
             },
           },
@@ -422,7 +500,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'copy_saved_meal_entries',
       {
-        description: 'Copy entries from a saved meal to a meal on a specific date.',
+        description: 'Copy entries from a saved meal to a meal on a specific date. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.CopySavedMealEntriesInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: false },
       },
@@ -441,7 +519,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'get_favorite_foods',
       {
-        description: "Get the user's favorite foods.",
+        description: "Get the user's favorite foods. Requires profile auth (check_auth_status first).",
         inputSchema: schemas.GetFavoriteFoodsInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
@@ -456,7 +534,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'delete_favorite_food',
       {
-        description: "Remove a food from the user's favorites.",
+        description: "Remove a food from the user's favorites. Requires profile auth (check_auth_status first).",
         inputSchema: schemas.DeleteFavoriteFoodInputSchema,
         annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
       },
@@ -471,7 +549,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'get_most_eaten_foods',
       {
-        description: "Get the user's most eaten foods, optionally filtered by meal.",
+        description: "Get the user's most eaten foods, optionally filtered by meal. Requires profile auth (check_auth_status first).",
         inputSchema: schemas.GetMostEatenFoodsInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
@@ -486,7 +564,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'get_recently_eaten_foods',
       {
-        description: "Get the user's recently eaten foods, optionally filtered by meal.",
+        description: "Get the user's recently eaten foods, optionally filtered by meal. Requires profile auth (check_auth_status first).",
         inputSchema: schemas.GetRecentlyEatenFoodsInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
@@ -501,7 +579,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'get_favorite_recipes',
       {
-        description: "Get the user's favorite recipes.",
+        description: "Get the user's favorite recipes. Requires profile auth (check_auth_status first).",
         inputSchema: schemas.GetFavoriteRecipesInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
@@ -516,7 +594,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'add_favorite_recipe',
       {
-        description: "Add a recipe to the user's favorites.",
+        description: "Add a recipe to the user's favorites. Requires profile auth (check_auth_status first).",
         inputSchema: schemas.AddFavoriteRecipeInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: true },
       },
@@ -531,7 +609,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'delete_favorite_recipe',
       {
-        description: "Remove a recipe from the user's favorites.",
+        description: "Remove a recipe from the user's favorites. Requires profile auth (check_auth_status first).",
         inputSchema: schemas.DeleteFavoriteRecipeInputSchema,
         annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
       },
@@ -550,7 +628,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'get_saved_meals',
       {
-        description: "Get the user's saved meals, optionally filtered by meal type.",
+        description: "Get the user's saved meals, optionally filtered by meal type. Requires profile auth (check_auth_status first).",
         inputSchema: schemas.GetSavedMealsInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
@@ -565,7 +643,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'create_saved_meal',
       {
-        description: 'Create a new saved meal.',
+        description: 'Create a new saved meal. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.CreateSavedMealInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: false },
       },
@@ -580,7 +658,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'edit_saved_meal',
       {
-        description: 'Edit a saved meal name, description, or associated meals.',
+        description: 'Edit a saved meal name, description, or associated meals. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.EditSavedMealInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: true },
       },
@@ -595,7 +673,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'delete_saved_meal',
       {
-        description: 'Delete a saved meal.',
+        description: 'Delete a saved meal. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.DeleteSavedMealInputSchema,
         annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
       },
@@ -610,7 +688,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'get_saved_meal_items',
       {
-        description: 'Get all food items in a saved meal.',
+        description: 'Get all food items in a saved meal. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.GetSavedMealItemsInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
@@ -625,7 +703,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'add_saved_meal_item',
       {
-        description: 'Add a food item to a saved meal.',
+        description: 'Add a food item to a saved meal. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.AddSavedMealItemInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: false },
       },
@@ -640,7 +718,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'edit_saved_meal_item',
       {
-        description: 'Edit a food item in a saved meal (name or units). Cannot change serving_id.',
+        description: 'Edit a food item in a saved meal (name or units). Cannot change serving_id. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.EditSavedMealItemInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: true },
       },
@@ -655,7 +733,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'delete_saved_meal_item',
       {
-        description: 'Remove a food item from a saved meal.',
+        description: 'Remove a food item from a saved meal. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.DeleteSavedMealItemInputSchema,
         annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
       },
@@ -674,7 +752,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'update_weight',
       {
-        description: "Record the user's weight for a date. First weigh-in requires goal_weight_kg and current_height_cm.",
+        description: "Record the user's weight for a date. First weigh-in requires goal_weight_kg and current_height_cm. Requires profile auth (check_auth_status first).",
         inputSchema: schemas.UpdateWeightInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: true },
       },
@@ -689,7 +767,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'get_weight_month',
       {
-        description: "Get the user's weight entries for a month.",
+        description: "Get the user's weight entries for a month. Requires profile auth (check_auth_status first).",
         inputSchema: schemas.GetWeightMonthInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
@@ -708,7 +786,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'get_exercises',
       {
-        description: 'Get the full list of supported exercise types and their IDs.',
+        description: 'Get the full list of supported exercise types and their IDs. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.GetExercisesInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
@@ -723,7 +801,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'edit_exercise_entries',
       {
-        description: 'Shift exercise time between activities for a date. Moves minutes from one exercise to another.',
+        description: 'Shift exercise time between activities for a date. Moves minutes from one exercise to another. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.EditExerciseEntriesInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: false },
       },
@@ -738,7 +816,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'get_exercise_entries_month',
       {
-        description: 'Get daily calories expended from exercise for a month.',
+        description: 'Get daily calories expended from exercise for a month. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.GetExerciseEntriesMonthInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
@@ -753,7 +831,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'save_exercise_template',
       {
-        description: "Save the current day's exercise entries as a template for specified days of the week.",
+        description: "Save the current day's exercise entries as a template for specified days of the week. Requires profile auth (check_auth_status first).",
         inputSchema: schemas.SaveExerciseTemplateInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: true },
       },
@@ -772,7 +850,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'get_profile',
       {
-        description: 'Get profile status information for the authenticated user.',
+        description: 'Get profile status information for the authenticated user. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.GetProfileInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true },
       },
@@ -787,7 +865,7 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'create_food',
       {
-        description: 'Create a custom food with nutrition info. Premier exclusive.',
+        description: 'Create a custom food with nutrition info. Premier exclusive. Requires profile auth (check_auth_status first).',
         inputSchema: schemas.CreateFoodInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: false },
       },
@@ -804,32 +882,93 @@ class FatSecretMcpServer {
 
   private registerAuthTools(): void {
     this.server.registerTool(
-      'start_oauth_flow',
+      'check_auth_status',
       {
-        description: 'Start the OAuth 1.0 authorization flow for profile access. Returns an authorization URL the user must visit.',
-        inputSchema: schemas.StartOAuthFlowInputSchema,
+        description: 'Check if API credentials and profile authentication are configured. Call this first to understand what setup is needed.',
+        inputSchema: schemas.CheckAuthStatusInputSchema,
+        annotations: { readOnlyHint: true, idempotentHint: true },
+      },
+      async () => {
+        const hasCredentials = this.hasApiCredentials();
+        const hasTokens = !!(this.oauth1Credentials.accessToken && this.oauth1Credentials.accessTokenSecret);
+
+        if (!hasCredentials) {
+          return text({
+            credentials_configured: false,
+            profile_authenticated: false,
+            config_path: this.getConfigPath(),
+            message: 'API credentials are not configured. Use setup_credentials to provide your FatSecret API keys. ' +
+              'Get them at https://platform.fatsecret.com/ → My Account → API Keys. ' +
+              'You need: Client ID, Client Secret (OAuth 2.0), and Consumer Secret (OAuth 1.0 — different from Client Secret).',
+          });
+        }
+
+        return text({
+          credentials_configured: true,
+          profile_authenticated: hasTokens,
+          config_path: this.getConfigPath(),
+          message: hasTokens
+            ? 'Fully configured. API credentials and profile authentication are ready. All tools are available.'
+            : 'API credentials configured (public tools work). Profile not authenticated — use start_auth to authorize profile access.',
+        });
+      },
+    );
+
+    this.server.registerTool(
+      'setup_credentials',
+      {
+        description: 'Configure FatSecret API credentials. Get them at https://platform.fatsecret.com/ → My Account → API Keys. Saves to persistent config file.',
+        inputSchema: schemas.SetupCredentialsInputSchema,
+        annotations: { readOnlyHint: false, idempotentHint: true },
+      },
+      async ({ client_id, client_secret, consumer_secret }) => {
+        this.clientId = client_id;
+        this.clientSecret = client_secret;
+        this.oauth1Credentials.consumerKey = client_id;
+        this.oauth1Credentials.consumerSecret = consumer_secret;
+
+        // Reset OAuth 2.0 token (new credentials)
+        this.oauth2Token = null;
+        this.oauth2TokenExpiry = 0;
+
+        this.saveConfig({ clientId: client_id, clientSecret: client_secret, consumerSecret: consumer_secret });
+
+        return text({
+          message: 'Credentials saved! Public API tools (food search, recipes) are now available. ' +
+            'For profile tools (food diary, weight, etc.), use start_auth to authorize your FatSecret account.',
+          config_path: this.getConfigPath(),
+        });
+      },
+    );
+
+    this.server.registerTool(
+      'start_auth',
+      {
+        description: 'Start the OAuth 1.0 authorization flow for profile access. Returns an authorization URL the user must visit. Requires API credentials (setup_credentials first).',
+        inputSchema: schemas.StartAuthInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: false },
       },
       async () => {
+        this.ensureApiCredentials();
         const result = await requestToken(this.oauth1Credentials);
         this.pendingOAuth = { token: result.oauthToken, secret: result.oauthTokenSecret };
         return text({
-          message: 'Visit the URL below to authorize the app, then use complete_oauth_flow with the verifier code.',
+          message: 'Visit the URL below to authorize the app, then use complete_auth with the verifier code.',
           authorization_url: result.authorizationUrl,
         });
       },
     );
 
     this.server.registerTool(
-      'complete_oauth_flow',
+      'complete_auth',
       {
         description: 'Complete the OAuth 1.0 flow with the verifier code from the authorization page.',
-        inputSchema: schemas.CompleteOAuthFlowInputSchema,
+        inputSchema: schemas.CompleteAuthInputSchema,
         annotations: { readOnlyHint: false, idempotentHint: false },
       },
       async ({ verifier }) => {
         if (!this.pendingOAuth) {
-          throw new Error('No pending OAuth flow. Call start_oauth_flow first.');
+          throw new Error('No pending OAuth flow. Call start_auth first.');
         }
         const result = await accessToken(
           this.oauth1Credentials,
@@ -837,31 +976,13 @@ class FatSecretMcpServer {
           this.pendingOAuth.secret,
           verifier,
         );
-        this.saveOAuth1Tokens(result.accessToken, result.accessTokenSecret);
+        this.saveConfig({ accessToken: result.accessToken, accessTokenSecret: result.accessTokenSecret });
+        this.oauth1Credentials.accessToken = result.accessToken;
+        this.oauth1Credentials.accessTokenSecret = result.accessTokenSecret;
         this.pendingOAuth = null;
         return text({
           message: 'Authentication successful! Profile tools are now available.',
           config_path: this.getConfigPath(),
-        });
-      },
-    );
-
-    this.server.registerTool(
-      'check_auth_status',
-      {
-        description: 'Check if OAuth 1.0 profile authentication is configured.',
-        inputSchema: schemas.CheckAuthStatusInputSchema,
-        annotations: { readOnlyHint: true, idempotentHint: true },
-      },
-      async () => {
-        const hasTokens = !!(this.oauth1Credentials.accessToken && this.oauth1Credentials.accessTokenSecret);
-        return text({
-          authenticated: hasTokens,
-          config_path: this.getConfigPath(),
-          config_exists: existsSync(this.getConfigPath()),
-          message: hasTokens
-            ? 'Profile authentication is configured. All tools are available.'
-            : 'Not authenticated for profile access. Use start_oauth_flow to begin.',
         });
       },
     );
