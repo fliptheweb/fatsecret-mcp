@@ -13,7 +13,8 @@
   "types": "dist/index.d.ts",
   "type": "module",
   "bin": {
-    "fatsecret-mcp": "dist/index.js"
+    "fatsecret-mcp": "dist/index.js",
+    "fatsecret-mcp-http": "dist/http-server.js"
   },
   "files": [
     "dist/**/*",
@@ -23,11 +24,14 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
+    "dev:http": "tsx src/http-server.ts",
     "start": "node dist/index.js",
+    "start:http": "node dist/http-server.js",
     "prepublishOnly": "npm run build",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/**/*.ts",
+    "test": "node --import tsx --test src/**/*.test.ts",
     "type-check": "tsc --noEmit",
     "generate": "tsx scripts/generate.ts",
     "version": "node scripts/bump-version.cjs && git add manifest.json server.json"
