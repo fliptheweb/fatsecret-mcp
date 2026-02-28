@@ -34,8 +34,6 @@ jobs:
 
       - name: Publish to NPM
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Build MCPB bundle
         run: |
