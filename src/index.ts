@@ -11,6 +11,7 @@ import type { paths as PublicPaths } from './generated/public-api.js';
 import type { paths as ProfilePaths } from './generated/profile-api.js';
 import { buildGetFoodEntriesQuery } from './food-diary.js';
 import { buildOAuth1Params, requestToken, accessToken, type OAuth1Credentials } from './oauth1.js';
+import { fetchOAuth2Token, resolveRequestedScope } from './oauth2.js';
 import * as schemas from './schemas.js';
 
 const require = createRequire(import.meta.url);
@@ -209,25 +210,14 @@ class FatSecretMcpServer {
       return this.oauth2Token;
     }
 
-    const response = await fetch('https://oauth.fatsecret.com/connect/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
-        scope: 'basic',
-      }),
-    });
-
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`OAuth2 token request failed: ${response.status} ${body}`);
-    }
-
-    const data = (await response.json()) as { access_token: string; expires_in: number };
-    this.oauth2Token = data.access_token;
-    this.oauth2TokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
+    const requestedScope = resolveRequestedScope(process.env.FATSECRET_OAUTH2_SCOPE);
+    const { accessToken: token, expiresIn } = await fetchOAuth2Token(
+      this.clientId,
+      this.clientSecret,
+      requestedScope,
+    );
+    this.oauth2Token = token;
+    this.oauth2TokenExpiry = Date.now() + (expiresIn - 60) * 1000;
     return this.oauth2Token;
   }
 
