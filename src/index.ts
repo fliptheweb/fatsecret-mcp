@@ -10,6 +10,7 @@ import createClient, { type Middleware } from 'openapi-fetch';
 import type { paths as PublicPaths } from './generated/public-api.js';
 import type { paths as ProfilePaths } from './generated/profile-api.js';
 import { buildGetFoodEntriesQuery } from './food-diary.js';
+import { buildFoodsSearchV1Query, isMissingScopeError } from './food-search.js';
 import { buildOAuth1Params, requestToken, accessToken, type OAuth1Credentials } from './oauth1.js';
 import * as schemas from './schemas.js';
 
@@ -51,6 +52,8 @@ class FatSecretMcpServer {
 
   private oauth2Token: string | null = null;
   private oauth2TokenExpiry = 0;
+  // Set once /foods/search/v5 answers "Missing scope" (Basic plan); search_foods then goes straight to v1
+  private premierUnavailable = false;
 
   private publicClient: ReturnType<typeof createClient<PublicPaths>>;
   private profileClient: ReturnType<typeof createClient<ProfilePaths>>;
@@ -246,13 +249,21 @@ class FatSecretMcpServer {
     this.server.registerTool(
       'search_foods',
       {
-        description: 'Search the FatSecret food database. Returns food names, descriptions, and basic nutrition info.',
+        description: 'Search the FatSecret food database. Returns food names, descriptions, and basic nutrition info. On the Basic plan only search_expression, page_number and max_results (max 50) are used.',
         inputSchema: schemas.SearchFoodsInputSchema,
         annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
       },
       async (args) => {
-        const { data } = await this.publicClient.GET('/foods/search/v5', {
-          params: { query: { ...args, format: 'json' } },
+        if (!this.premierUnavailable) {
+          const { data } = await this.publicClient.GET('/foods/search/v5', {
+            params: { query: { ...args, format: 'json' } },
+          });
+          // v5 is Premier exclusive: "Missing scope" means Basic plan → fall back to v1
+          if (!isMissingScopeError(data)) return text(data);
+          this.premierUnavailable = true;
+        }
+        const { data } = await this.publicClient.GET('/foods/search/v1', {
+          params: { query: buildFoodsSearchV1Query(args) },
         });
         return text(data);
       },
@@ -935,6 +946,8 @@ class FatSecretMcpServer {
         // Reset OAuth 2.0 token (new credentials)
         this.oauth2Token = null;
         this.oauth2TokenExpiry = 0;
+        // New credentials may be on a different plan, so try search v5 again
+        this.premierUnavailable = false;
 
         // Clear stale OAuth tokens when credentials change
         this.oauth1Credentials.accessToken = undefined;
