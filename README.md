@@ -74,6 +74,9 @@ Alternatively, you can pass credentials as environment variables:
 
 Download and open [fatsecret-mcp.mcpb](https://github.com/fliptheweb/fatsecret-mcp/releases/latest/download/fatsecret-mcp.mcpb) with Claude Desktop. You'll be prompted to enter your FatSecret credentials — secrets are stored securely in the OS keychain.
 
+> [!WARNING]
+> If one-click install fails or the extension doesn't start, it may be a Claude Desktop bug ([mcpb#281](https://github.com/modelcontextprotocol/mcpb/issues/281)). **Workaround:** download [fatsecret-mcp.zip](https://github.com/fliptheweb/fatsecret-mcp/releases/latest/download/fatsecret-mcp.zip), extract it, and use **Settings → Extensions → Advanced settings → Install Unpacked Extension**. Or use the `npx` config above.
+
 See [Building Desktop Extensions with MCPB](https://support.claude.com/en/articles/12922929-building-desktop-extensions-with-mcpb) for more details.
 
 ### Claude Desktop (Manual)
