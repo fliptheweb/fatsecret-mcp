@@ -10,6 +10,13 @@ export function isMissingScopeError(data: unknown): boolean {
   return Number(code) === MISSING_SCOPE_ERROR_CODE;
 }
 
+const V1_PARAMS = new Set(['search_expression', 'page_number', 'max_results']);
+
+/** Options the caller set that /foods/search/v1 can't use, so the response can say they were ignored. */
+export function ignoredV1Options(args: Record<string, unknown>): string[] {
+  return Object.keys(args).filter((key) => args[key] !== undefined && !V1_PARAMS.has(key));
+}
+
 /**
  * /foods/search/v1 only accepts search_expression, page_number and max_results;
  * the v5-only options (region, language, food_type, ...) are dropped.

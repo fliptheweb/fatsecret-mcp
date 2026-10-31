@@ -10,9 +10,9 @@ import createClient, { type Middleware } from 'openapi-fetch';
 import type { paths as PublicPaths } from './generated/public-api.js';
 import type { paths as ProfilePaths } from './generated/profile-api.js';
 import { buildGetFoodEntriesQuery } from './food-diary.js';
-import { buildFoodsSearchV1Query, isMissingScopeError } from './food-search.js';
+import { buildFoodsSearchV1Query, ignoredV1Options, isMissingScopeError } from './food-search.js';
 import { buildOAuth1Params, requestToken, accessToken, type OAuth1Credentials } from './oauth1.js';
-import { fetchOAuth2Token, resolveRequestedScope } from './oauth2.js';
+import { fetchOAuth2Token, hasPremierScope, OAUTH2_SCOPES } from './oauth2.js';
 import * as schemas from './schemas.js';
 
 const require = createRequire(import.meta.url);
@@ -53,8 +53,9 @@ class FatSecretMcpServer {
 
   private oauth2Token: string | null = null;
   private oauth2TokenExpiry = 0;
-  // Set once /foods/search/v5 answers "Missing scope" (Basic plan); search_foods then goes straight to v1
-  private premierUnavailable = false;
+  // Scope the key was granted ("basic premier" or "basic"); null until the first token request
+  private oauth2Scope: string | null = null;
+  private oauth2Pending: Promise<string> | null = null;
 
   private publicClient: ReturnType<typeof createClient<PublicPaths>>;
   private profileClient: ReturnType<typeof createClient<ProfilePaths>>;
@@ -213,15 +214,24 @@ class FatSecretMcpServer {
       return this.oauth2Token;
     }
 
-    const requestedScope = resolveRequestedScope(process.env.FATSECRET_OAUTH2_SCOPE);
-    const { accessToken: token, expiresIn } = await fetchOAuth2Token(
+    // Concurrent tool calls share one token request
+    this.oauth2Pending ??= this.requestOAuth2Token().finally(() => {
+      this.oauth2Pending = null;
+    });
+    return this.oauth2Pending;
+  }
+
+  private async requestOAuth2Token(): Promise<string> {
+    // After the first token we know which scope the key is entitled to, so refreshes take one request
+    const { accessToken: token, expiresIn, scope } = await fetchOAuth2Token(
       this.clientId,
       this.clientSecret,
-      requestedScope,
+      this.oauth2Scope ? [this.oauth2Scope] : OAUTH2_SCOPES,
     );
+    this.oauth2Scope = scope;
     this.oauth2Token = token;
     this.oauth2TokenExpiry = Date.now() + (expiresIn - 60) * 1000;
-    return this.oauth2Token;
+    return token;
   }
 
   private ensureProfileAuth(): void {
@@ -244,18 +254,20 @@ class FatSecretMcpServer {
         annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: true },
       },
       async (args) => {
-        if (!this.premierUnavailable) {
+        // v5 is Premier exclusive, so the granted token scope decides which endpoint to call
+        await this.getOAuth2Token();
+        if (hasPremierScope(this.oauth2Scope)) {
           const { data } = await this.publicClient.GET('/foods/search/v5', {
             params: { query: { ...args, format: 'json' } },
           });
-          // v5 is Premier exclusive: "Missing scope" means Basic plan → fall back to v1
+          // Safety net: if v5 still answers "Missing scope", use v1 below
           if (!isMissingScopeError(data)) return text(data);
-          this.premierUnavailable = true;
         }
         const { data } = await this.publicClient.GET('/foods/search/v1', {
           params: { query: buildFoodsSearchV1Query(args) },
         });
-        return text(data);
+        const ignored = ignoredV1Options(args);
+        return text(ignored.length ? { ...(data as object), note: `Basic plan: ${ignored.join(', ')} ignored` } : data);
       },
     );
 
@@ -936,8 +948,9 @@ class FatSecretMcpServer {
         // Reset OAuth 2.0 token (new credentials)
         this.oauth2Token = null;
         this.oauth2TokenExpiry = 0;
-        // New credentials may be on a different plan, so try search v5 again
-        this.premierUnavailable = false;
+        this.oauth2Pending = null;
+        // New credentials may be on a different plan, so detect the scope again
+        this.oauth2Scope = null;
 
         // Clear stale OAuth tokens when credentials change
         this.oauth1Credentials.accessToken = undefined;
