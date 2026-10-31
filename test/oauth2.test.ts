@@ -1,23 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
-  DEFAULT_OAUTH2_SCOPE,
-  FALLBACK_OAUTH2_SCOPE,
-  resolveRequestedScope,
-  isInvalidScopeError,
-  fetchOAuth2Token,
-} from '../src/oauth2.ts';
+import { OAUTH2_SCOPES, hasPremierScope, isInvalidScopeError, fetchOAuth2Token } from '../src/oauth2.ts';
 
-test('resolveRequestedScope defaults to "basic premier" when no override is set', () => {
-  assert.equal(resolveRequestedScope(undefined), DEFAULT_OAUTH2_SCOPE);
-  assert.equal(resolveRequestedScope(''), DEFAULT_OAUTH2_SCOPE);
-});
-
-test('resolveRequestedScope honors FATSECRET_OAUTH2_SCOPE override', () => {
-  assert.equal(resolveRequestedScope('basic'), 'basic');
-  assert.equal(resolveRequestedScope('  basic premier  '), 'basic premier');
-});
+// Fake token endpoint: grants only the scopes in `allowed`, answers others like FatSecret does
+function fakeTokenEndpoint(allowed: string[], refusal = { status: 400, body: '{"error":"invalid_scope"}' }) {
+  const requested: string[] = [];
+  const fetchImpl = (async (_url: string, init?: { body?: URLSearchParams }) => {
+    const scope = (init?.body as URLSearchParams).get('scope') ?? '';
+    requested.push(scope);
+    if (allowed.includes(scope)) {
+      return new Response(JSON.stringify({ access_token: `token-${scope}`, expires_in: 3600 }), { status: 200 });
+    }
+    return new Response(refusal.body, { status: refusal.status });
+  }) as typeof fetch;
+  return { fetchImpl, requested };
+}
 
 test('isInvalidScopeError only matches 400 responses with an invalid_scope body', () => {
   assert.equal(isInvalidScopeError(400, '{"error":"invalid_scope"}'), true);
@@ -25,30 +23,35 @@ test('isInvalidScopeError only matches 400 responses with an invalid_scope body'
   assert.equal(isInvalidScopeError(401, '{"error":"invalid_scope"}'), false);
 });
 
-test('fetchOAuth2Token falls back to basic scope when the premier scope is rejected', async () => {
-  const requestedScopes: string[] = [];
+test('hasPremierScope checks for the premier scope token', () => {
+  assert.equal(hasPremierScope('basic premier'), true);
+  assert.equal(hasPremierScope('basic'), false);
+  assert.equal(hasPremierScope(null), false);
+});
 
-  const fakeFetch = (async (_url: string, init?: { body?: URLSearchParams }) => {
-    const scope = (init?.body as URLSearchParams).get('scope') ?? '';
-    requestedScopes.push(scope);
+test('a Premier key gets the premier scope with one request', async () => {
+  const { fetchImpl, requested } = fakeTokenEndpoint(['basic premier', 'basic']);
+  const result = await fetchOAuth2Token('id', 'secret', OAUTH2_SCOPES, fetchImpl);
+  assert.deepEqual(requested, ['basic premier']);
+  assert.equal(result.scope, 'basic premier');
+  assert.equal(result.accessToken, 'token-basic premier');
+});
 
-    if (scope === FALLBACK_OAUTH2_SCOPE) {
-      return new Response(JSON.stringify({ access_token: 'token-basic', expires_in: 3600 }), {
-        status: 200,
-      });
-    }
+test('a free key falls back to basic when premier is refused with invalid_scope', async () => {
+  const { fetchImpl, requested } = fakeTokenEndpoint(['basic']);
+  const result = await fetchOAuth2Token('id', 'secret', OAUTH2_SCOPES, fetchImpl);
+  assert.deepEqual(requested, ['basic premier', 'basic']);
+  assert.equal(result.scope, 'basic');
+});
 
-    return new Response('{"error":"invalid_scope"}', { status: 400 });
-  }) as typeof fetch;
+test('other errors (e.g. wrong secret) fail without retrying', async () => {
+  const { fetchImpl, requested } = fakeTokenEndpoint([], { status: 401, body: '{"error":"invalid_client"}' });
+  await assert.rejects(fetchOAuth2Token('id', 'secret', OAUTH2_SCOPES, fetchImpl), /401/);
+  assert.deepEqual(requested, ['basic premier']);
+});
 
-  const result = await fetchOAuth2Token(
-    'client-id',
-    'client-secret',
-    DEFAULT_OAUTH2_SCOPE,
-    fakeFetch,
-  );
-
-  assert.deepEqual(requestedScopes, [DEFAULT_OAUTH2_SCOPE, FALLBACK_OAUTH2_SCOPE]);
-  assert.equal(result.accessToken, 'token-basic');
-  assert.equal(result.scope, FALLBACK_OAUTH2_SCOPE);
+test('a remembered scope is requested alone and its refusal is reported', async () => {
+  const { fetchImpl, requested } = fakeTokenEndpoint([]);
+  await assert.rejects(fetchOAuth2Token('id', 'secret', ['basic'], fetchImpl), /400/);
+  assert.deepEqual(requested, ['basic']);
 });

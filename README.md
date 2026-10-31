@@ -72,13 +72,7 @@ Alternatively, you can pass credentials as environment variables:
 
 #### 💎 Premier Keys
 
-If your FatSecret application has **Premier** access (e.g. branded food data), the server requests the `basic premier` OAuth 2.0 scope by default so Premier-only data is included in search results. Free keys aren't entitled to the `premier` scope — when FatSecret rejects it with `invalid_scope`, the server automatically retries with the `basic` scope, so nothing extra is needed for non-Premier keys.
-
-To force a specific scope (e.g. skip the premier attempt, or request a different scope your key supports), set:
-
-```bash
-FATSECRET_OAUTH2_SCOPE=basic
-```
+Premier keys work out of the box: the server asks for the `basic premier` OAuth 2.0 scope and, if FatSecret refuses it (free keys), uses `basic`. Premier keys get Premier-only data such as branded foods and `search_foods` v5; free keys get `search_foods` v1.
 
 ### Claude Desktop (Extension)
 
