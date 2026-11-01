@@ -70,6 +70,10 @@ Alternatively, you can pass credentials as environment variables:
 
 📖 Step-by-step guide: [Getting Started with FatSecret API](https://github.com/fatsecret-group/postman-fatsecret-apis)
 
+#### 💎 Premier Keys
+
+Premier keys work out of the box: the server asks for the `basic premier` OAuth 2.0 scope and, if FatSecret refuses it (free keys), uses `basic`. Premier keys get Premier-only data such as branded foods and `search_foods` v5; free keys get `search_foods` v1.
+
 ### Claude Desktop (Extension)
 
 Download and open [fatsecret-mcp.mcpb](https://github.com/fliptheweb/fatsecret-mcp/releases/latest/download/fatsecret-mcp.mcpb) with Claude Desktop. You'll be prompted to enter your FatSecret credentials — secrets are stored securely in the OS keychain.
