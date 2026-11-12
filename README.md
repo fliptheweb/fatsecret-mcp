@@ -70,6 +70,16 @@ Alternatively, you can pass credentials as environment variables:
 
 📖 Step-by-step guide: [Getting Started with FatSecret API](https://github.com/fatsecret-group/postman-fatsecret-apis)
 
+#### 💎 Premier Keys
+
+If your FatSecret application has **Premier** access (e.g. branded food data), the server requests the `basic premier` OAuth 2.0 scope by default so Premier-only data is included in search results. Free keys aren't entitled to the `premier` scope — when FatSecret rejects it with `invalid_scope`, the server automatically retries with the `basic` scope, so nothing extra is needed for non-Premier keys.
+
+To force a specific scope (e.g. skip the premier attempt, or request a different scope your key supports), set:
+
+```bash
+FATSECRET_OAUTH2_SCOPE=basic
+```
+
 ### Claude Desktop (Extension)
 
 Download and open [fatsecret-mcp.mcpb](https://github.com/fliptheweb/fatsecret-mcp/releases/latest/download/fatsecret-mcp.mcpb) with Claude Desktop. You'll be prompted to enter your FatSecret credentials — secrets are stored securely in the OS keychain.
