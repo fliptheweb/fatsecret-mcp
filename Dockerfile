@@ -2,7 +2,8 @@
 # The server exposes native stateless Streamable HTTP itself (PORT),
 # so supergateway (and its per-session child processes) is gone.
 FROM oven/bun:alpine
-RUN apk add --no-cache tzdata && adduser -D -h /home/bun bun
+RUN apk add --no-cache tzdata && mkdir -p /home/bun/.fatsecret-mcp && chown -R bun:bun /home/bun
+ENV HOME=/home/bun
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
