@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { hasPremierScope, hasScope, isInvalidScopeError, fetchOAuth2Token, detectOAuth2Token } from '../src/oauth2.ts';
+import { hasPremierScope, hasScope, isInvalidScopeError, fetchOAuth2Token, detectOAuth2Token } from '../src/oauth2.js';
 
 const ALL = 'basic premier barcode nlp image-recognition';
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { resilientFetch } from '../src/http.ts';
+import { resilientFetch } from '../src/http.js';
 
 // Fast timings so the suite doesn't wait out real timeouts
 const fast = { timeoutMs: 30, retryDelaysMs: [1, 1] };

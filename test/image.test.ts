@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { MAX_IMAGE_B64_LENGTH, resolveImageB64 } from '../src/image.ts';
+import { MAX_IMAGE_B64_LENGTH, resolveImageB64 } from '../src/image.js';
 
 const fakeRead = (bytes: number) => () => Buffer.alloc(bytes, 1);
 

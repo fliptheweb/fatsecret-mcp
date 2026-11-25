@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { asArray, chooseServing, dayTotals, type Serving } from '../src/meal.ts';
+import { asArray, chooseServing, dayTotals, type Serving } from '../src/meal.js';
 
 // Real servings of "Buckwheat Groats (Cooked, Roasted)" from /food/v5
 const buckwheat: Serving[] = [

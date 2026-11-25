@@ -8,6 +8,7 @@ mcpb-build/
 schemas/*
 !schemas/.gitkeep
 tsconfig.tsbuildinfo
+*.tsbuildinfo
 
 # AI files
 .claude/

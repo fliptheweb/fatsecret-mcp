@@ -12,7 +12,7 @@ const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
  */
 export function resolveImageB64(
   { image_path, image_b64 }: { image_path?: string; image_b64?: string },
-  readFile: typeof readFileSync = readFileSync,
+  readFile: (path: string) => Buffer | string = readFileSync,
 ): string {
   let b64: string;
   if (image_path) {

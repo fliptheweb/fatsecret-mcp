@@ -32,7 +32,7 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/**/*.ts",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "generate": "tsx scripts/generate.ts",
     "deploy": "sh scripts/deploy.sh",
     "version": "node scripts/bump-version.cjs && git add manifest.json server.json"
@@ -62,6 +62,7 @@
     "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": "^8.44.1",
     "@typescript-eslint/parser": "^8.44.1",
+    "bun-types": "^1.4.5",
     "eslint": "^9.36.0",
     "globals": "^16.4.0",
     "openapi-typescript": "^7.13.0",

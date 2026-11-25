@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { trimSearchServings, buildFoodsSearchV1Query, ignoredV1Options, isMissingScopeError } from '../src/food-search.ts';
+import { trimSearchServings, buildFoodsSearchV1Query, ignoredV1Options, isMissingScopeError } from '../src/food-search.js';
 
 test('isMissingScopeError detects the Basic plan response from /foods/search/v5', () => {
   assert.equal(isMissingScopeError({ error: { code: 14, message: 'Missing scope: premier' } }), true);

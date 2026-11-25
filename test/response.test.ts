@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isApiError, result, toolResult } from '../src/response.ts';
+import { isApiError, result, toolResult } from '../src/response.js';
 
 test('isApiError detects FatSecret error payloads', () => {
   assert.equal(isApiError({ error: { code: 106, message: 'Invalid ID' } }), true);

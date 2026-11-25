@@ -21,6 +21,7 @@ export default [
       '@typescript-eslint': tseslint,
     },
     rules: {
+      'no-unused-vars': 'off', // base rule can't read TS type positions; @typescript-eslint version below covers it
       '@typescript-eslint/no-unused-vars': 'error',
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/explicit-function-return-type': 'off',

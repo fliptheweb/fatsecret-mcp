@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
-import { serveHttp } from '../src/http-server.ts';
+import { serveHttp } from '../src/http-server.js';
 
 async function startServer(): Promise<{ base: string; close: () => Promise<void> }> {
   const server = new McpServer({ name: 'test', version: '0' });

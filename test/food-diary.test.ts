@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildGetFoodEntriesQuery, dateToDays, localDate, optionalDateToDays } from '../src/food-diary.ts';
+import { buildGetFoodEntriesQuery, dateToDays, localDate, optionalDateToDays } from '../src/food-diary.js';
 
 test('dateToDays converts YYYY-MM-DD to FatSecret date integer', () => {
   assert.equal(dateToDays('2026-06-17'), 20621);
