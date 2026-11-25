@@ -206,6 +206,21 @@ FATSECRET_CLIENT_ID='...' FATSECRET_CLIENT_SECRET='...' FATSECRET_CONSUMER_SECRE
 - FatSecret Platform API account ([platform.fatsecret.com](https://platform.fatsecret.com/))
 - MCP-compatible client (Claude Desktop, Cursor, etc.)
 
+## 🌍 Self-Hosted Server (Docker)
+
+Run the server on your own machine or VPS and connect remote clients (Claude.ai, ChatGPT connectors) over HTTPS.
+
+1. Copy `.env.example` to `.env` and fill it in:
+   - `FATSECRET_CLIENT_ID`, `FATSECRET_CLIENT_SECRET`, `FATSECRET_CONSUMER_SECRET`
+   - `TZ` — time zone for the default diary "today" (e.g. `Europe/Moscow`)
+   - `DOMAIN` — public host name (an IP works too, e.g. `203-0-113-5.sslip.io`)
+   - `MCP_SECRET` — long random string: `openssl rand -hex 24`
+2. `docker compose up -d --build`
+
+Caddy issues HTTPS automatically and proxies only `https://<DOMAIN>/<MCP_SECRET>/mcp` to the server — everything else gets 404. The secret path is the access control, since remote MCP connectors can't send auth headers. Guard the URL like a password.
+
+Profile tokens persist in `./data`, so `setup_credentials` and favorites survive restarts and rebuilds.
+
 ## 🔧 Development
 
 1. Clone the repository
