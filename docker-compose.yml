@@ -4,7 +4,7 @@ services:
     image: fatsecret-mcp:latest
     env_file: .env
     volumes:
-      - ./data:/home/node/.fatsecret-mcp
+      - ./data:/home/bun/.fatsecret-mcp
     restart: unless-stopped
 
   caddy:

@@ -2,6 +2,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { serveHttp } from './http-server.js';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -1087,6 +1088,13 @@ class FatSecretMcpServer {
   // ── Run ──
 
   async run(): Promise<void> {
+    // PORT set (Docker) → native stateless Streamable HTTP, no supergateway.
+    // No PORT (local npx / Claude Desktop) → stdio as before.
+    const port = Number(process.env.PORT);
+    if (port) {
+      serveHttp(this.server, port);
+      return;
+    }
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error('FatSecret MCP server running on stdio');
