@@ -13,8 +13,11 @@ COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 USER node
+# Cap per-process heap: stateful mode spawns one node child per MCP session,
+# and remote connectors open many sessions per prompt without closing them.
+ENV NODE_OPTIONS=--max-old-space-size=192
 # Profile tokens live in ~/.fatsecret-mcp/config.json; mount it as a volume
 VOLUME /home/node/.fatsecret-mcp
 EXPOSE 8000
 CMD ["supergateway", "--stdio", "node /app/dist/index.js", "--outputTransport", "streamableHttp", \
-     "--stateful", "--sessionTimeout", "3600000", "--port", "8000", "--healthEndpoint", "/healthz"]
+     "--stateful", "--sessionTimeout", "300000", "--port", "8000", "--healthEndpoint", "/healthz"]
