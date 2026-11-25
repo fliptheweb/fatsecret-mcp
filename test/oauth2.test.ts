@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { OAUTH2_SCOPES, hasPremierScope, isInvalidScopeError, fetchOAuth2Token } from '../src/oauth2.ts';
+import { hasPremierScope, hasScope, isInvalidScopeError, fetchOAuth2Token, detectOAuth2Token } from '../src/oauth2.ts';
+
+const ALL = 'basic premier barcode nlp image-recognition';
 
 // Fake token endpoint: grants only the scopes in `allowed`, answers others like FatSecret does
 function fakeTokenEndpoint(allowed: string[], refusal = { status: 400, body: '{"error":"invalid_scope"}' }) {
@@ -29,25 +31,45 @@ test('hasPremierScope checks for the premier scope token', () => {
   assert.equal(hasPremierScope(null), false);
 });
 
-test('a Premier key gets the premier scope with one request', async () => {
-  const { fetchImpl, requested } = fakeTokenEndpoint(['basic premier', 'basic']);
-  const result = await fetchOAuth2Token('id', 'secret', OAUTH2_SCOPES, fetchImpl);
-  assert.deepEqual(requested, ['basic premier']);
-  assert.equal(result.scope, 'basic premier');
-  assert.equal(result.accessToken, 'token-basic premier');
+test('hasScope matches whole scope names only', () => {
+  assert.equal(hasScope('basic premier barcode', 'barcode'), true);
+  assert.equal(hasScope('basic premier', 'barcode'), false);
+  assert.equal(hasScope(null, 'basic'), false);
 });
 
-test('a free key falls back to basic when premier is refused with invalid_scope', async () => {
+test('a key with every scope gets them all with one request', async () => {
+  const { fetchImpl, requested } = fakeTokenEndpoint([ALL]);
+  const result = await detectOAuth2Token('id', 'secret', fetchImpl);
+  assert.deepEqual(requested, [ALL]);
+  assert.equal(result.scope, ALL);
+});
+
+test('a Premier key without add-ons keeps only the scopes it was granted', async () => {
+  const { fetchImpl, requested } = fakeTokenEndpoint(['basic premier', 'basic barcode', 'basic premier barcode']);
+  const result = await detectOAuth2Token('id', 'secret', fetchImpl);
+  assert.deepEqual(requested, [
+    ALL,
+    'basic premier',
+    'basic barcode',
+    'basic nlp',
+    'basic image-recognition',
+    'basic premier barcode',
+  ]);
+  assert.equal(result.scope, 'basic premier barcode');
+  assert.equal(result.accessToken, 'token-basic premier barcode');
+});
+
+test('a free key falls back to basic', async () => {
   const { fetchImpl, requested } = fakeTokenEndpoint(['basic']);
-  const result = await fetchOAuth2Token('id', 'secret', OAUTH2_SCOPES, fetchImpl);
-  assert.deepEqual(requested, ['basic premier', 'basic']);
+  const result = await detectOAuth2Token('id', 'secret', fetchImpl);
   assert.equal(result.scope, 'basic');
+  assert.equal(requested.at(-1), 'basic');
 });
 
-test('other errors (e.g. wrong secret) fail without retrying', async () => {
+test('other errors (e.g. wrong secret) fail without probing', async () => {
   const { fetchImpl, requested } = fakeTokenEndpoint([], { status: 401, body: '{"error":"invalid_client"}' });
-  await assert.rejects(fetchOAuth2Token('id', 'secret', OAUTH2_SCOPES, fetchImpl), /401/);
-  assert.deepEqual(requested, ['basic premier']);
+  await assert.rejects(detectOAuth2Token('id', 'secret', fetchImpl), /401/);
+  assert.deepEqual(requested, [ALL]);
 });
 
 test('a remembered scope is requested alone and its refusal is reported', async () => {

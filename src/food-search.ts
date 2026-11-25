@@ -32,3 +32,34 @@ export function buildFoodsSearchV1Query({
 }) {
   return { search_expression, page_number, max_results, format: 'json' as const };
 }
+
+const SEARCH_SERVING_FIELDS = [
+  'serving_id',
+  'serving_description',
+  'measurement_description',
+  'number_of_units',
+  'metric_serving_amount',
+  'metric_serving_unit',
+  'is_default',
+  'calories',
+  'protein',
+  'fat',
+  'carbohydrate',
+];
+
+/**
+ * /foods/search/v5 returns every serving with ~20 micronutrients per food. Search only needs
+ * enough to pick a food and serving, so servings keep calories and macros; get_food has the rest.
+ */
+export function trimSearchServings(data: unknown): unknown {
+  const foods = (data as { foods_search?: { results?: { food?: unknown } | null } } | null)?.foods_search?.results?.food;
+  if (!Array.isArray(foods)) return data;
+  for (const food of foods as { servings?: { serving?: unknown } }[]) {
+    const servings = food.servings?.serving;
+    if (!servings) continue;
+    const trim = (s: Record<string, unknown>) =>
+      Object.fromEntries(SEARCH_SERVING_FIELDS.filter((k) => s[k] !== undefined).map((k) => [k, s[k]]));
+    food.servings!.serving = Array.isArray(servings) ? servings.map(trim) : trim(servings as Record<string, unknown>);
+  }
+  return data;
+}

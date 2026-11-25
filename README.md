@@ -72,7 +72,7 @@ Alternatively, you can pass credentials as environment variables:
 
 #### 💎 Premier Keys
 
-Premier keys work out of the box: the server asks for the `basic premier` OAuth 2.0 scope and, if FatSecret refuses it (free keys), uses `basic`. Premier keys get Premier-only data such as branded foods and `search_foods` v5; free keys get `search_foods` v1.
+Premier keys work out of the box. FatSecret grants OAuth 2.0 scopes per key, so the server asks for `basic premier barcode nlp image-recognition` and, if FatSecret refuses any of them, keeps just the ones your key is entitled to (free keys end up with `basic`). Premier keys get Premier-only data such as branded foods and `search_foods` v5; free keys get `search_foods` v1. Barcode lookup needs the `barcode` scope; `parse_food_text` and `recognize_food_image` need the paid NLP and image recognition add-ons.
 
 ### Claude Desktop (Extension)
 
@@ -127,6 +127,10 @@ Verify with `claude mcp list`.
 | `find_food_by_barcode` | Find food by GTIN-13 barcode |
 | `autocomplete_foods` | Get search autocomplete suggestions |
 | | |
+| **🤖 Recognition** *(paid add-ons)* | |
+| `parse_food_text` | Match a free-text meal description to foods and servings (NLP) |
+| `recognize_food_image` | Recognize foods in a meal photo (image recognition) |
+| | |
 | **🍳 Recipes** *(public)* | |
 | `search_recipes` | Search recipes with filters |
 | `get_recipe` | Get recipe details with ingredients and directions |
@@ -138,6 +142,7 @@ Verify with `claude mcp list`.
 | `get_recipe_types` | Get recipe types |
 | | |
 | **📝 Food Diary** *(profile auth)* | |
+| `log_meal` | Log a whole meal in one call (grams or servings) and get day totals |
 | `get_food_entries` | Get food diary entries for a date |
 | `get_food_entries_month` | Get monthly nutrition summary (calories & macros per day) |
 | `create_food_entry` | Add a food diary entry |
@@ -148,6 +153,7 @@ Verify with `claude mcp list`.
 | | |
 | **⭐ Favorites** *(profile auth)* | |
 | `get_favorite_foods` | Get favorite foods |
+| `add_favorite_food` | Add food to favorites |
 | `delete_favorite_food` | Remove food from favorites |
 | `get_most_eaten_foods` | Get most eaten foods |
 | `get_recently_eaten_foods` | Get recently eaten foods |
@@ -171,6 +177,7 @@ Verify with `claude mcp list`.
 | | |
 | **🏃‍♂️ Exercise** *(profile auth)* | |
 | `get_exercises` | Get exercise types |
+| `get_exercise_entries` | Get exercise entries for a date |
 | `edit_exercise_entries` | Shift exercise time between activities |
 | `get_exercise_entries_month` | Get exercise data for a month |
 | `save_exercise_template` | Save exercise template for weekdays |

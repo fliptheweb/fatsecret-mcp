@@ -22,6 +22,34 @@ export const FindFoodByBarcodeInputSchema = pub.get__food_barcode_findById_v2.pa
   .omit({ format: true })
   .extend({ barcode: z.string().describe('GTIN-13 barcode number') });
 
+// ── Public API – Natural Language Processing & Image Recognition (paid add-ons) ──
+
+const EatenFoodSchema = z.object({
+  food_id: z.number().int().describe('Food ID'),
+  food_name: z.string().describe('Food name'),
+  food_brand: z.string().optional().describe('Brand name'),
+  serving_description: z.string().optional().describe('Serving description, e.g. "whole"'),
+  serving_size: z.number().optional().describe('Serving size'),
+});
+
+const RecognitionFields = {
+  include_food_data: z.boolean().optional().describe('Include full food and serving data for each match (default true)'),
+  eaten_foods: z.array(EatenFoodSchema).optional().describe('Foods the user usually eats, used to improve matching'),
+  region: z.string().optional().describe('Country code, e.g. "GB". Premier localization; ignored unless enabled for the key'),
+  language: z.string().optional().describe('Language code, e.g. "en". Ignored unless region is set'),
+};
+
+export const ParseFoodTextInputSchema = z.object({
+  user_input: z.string().max(1000).describe('Free-text meal description, e.g. "2 eggs, a slice of toast and a cappuccino"'),
+  ...RecognitionFields,
+});
+
+export const RecognizeFoodImageInputSchema = z.object({
+  image_path: z.string().optional().describe('Local path to a .jpg/.jpeg/.png/.webp photo, at most ~730 KB (shrink with e.g. `sips -Z 512 photo.jpg`)'),
+  image_b64: z.string().optional().describe('Base64-encoded image, used when image_path is not given'),
+  ...RecognitionFields,
+});
+
 export const AutocompleteFoodsInputSchema = pub.get__food_autocomplete_v2.parameters.shape.query
   .omit({ format: true })
   .extend({ expression: z.string().describe('Partial search expression') });
@@ -71,6 +99,23 @@ export const CreateFoodEntryInputSchema = profile.post__foodEntries_v1.parameter
     date: DateField,
   });
 
+export const LogMealInputSchema = z.object({
+  meal: MealField,
+  date: DateField,
+  items: z
+    .array(
+      z.object({
+        food_id: z.number().int().describe('Food ID'),
+        grams: z.number().positive().optional().describe('Amount eaten in grams; a gram-based serving is picked automatically'),
+        serving_id: z.number().int().optional().describe('Serving ID, instead of grams'),
+        number_of_units: z.number().positive().optional().describe('Units of serving_id (default 1)'),
+        food_entry_name: z.string().optional().describe('Diary name (default: the food name)'),
+      }),
+    )
+    .min(1)
+    .describe('Foods eaten in this meal'),
+});
+
 export const EditFoodEntryInputSchema = profile.put__foodEntries_v1.parameters.shape.query
   .omit({ format: true, meal: true })
   .extend({
@@ -105,6 +150,9 @@ export const GetFavoriteFoodsInputSchema = z.object({});
 export const DeleteFavoriteFoodInputSchema = profile.post__food_favorite_v1.parameters.shape.query
   .omit({ format: true })
   .extend({ food_id: z.number().int().describe('Food ID to remove from favorites') });
+
+export const AddFavoriteFoodInputSchema = DeleteFavoriteFoodInputSchema
+  .extend({ food_id: z.number().int().describe('Food ID to add to favorites') });
 
 export const GetMostEatenFoodsInputSchema = profile.get__food_mostEaten_v2.parameters.shape.query
   .omit({ format: true, meal: true })
@@ -194,6 +242,8 @@ export const GetWeightMonthInputSchema = profile.get__weight_month_v2.parameters
 // ── Profile API – Exercise ──
 
 export const GetExercisesInputSchema = z.object({});
+
+export const GetExerciseEntriesInputSchema = z.object({ date: DateField });
 
 export const EditExerciseEntriesInputSchema = profile.put__exerciseEntries_v1.parameters.shape.query
   .omit({ format: true, date: true })

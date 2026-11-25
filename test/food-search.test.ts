@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildFoodsSearchV1Query, ignoredV1Options, isMissingScopeError } from '../src/food-search.ts';
+import { trimSearchServings, buildFoodsSearchV1Query, ignoredV1Options, isMissingScopeError } from '../src/food-search.ts';
 
 test('isMissingScopeError detects the Basic plan response from /foods/search/v5', () => {
   assert.equal(isMissingScopeError({ error: { code: 14, message: 'Missing scope: premier' } }), true);
@@ -39,4 +39,33 @@ test('ignoredV1Options lists the set options v1 drops', () => {
     ['region'],
   );
   assert.deepEqual(ignoredV1Options({ search_expression: 'banana', page_number: 2 }), []);
+});
+
+test('trimSearchServings keeps calories and macros of each serving only', () => {
+  const data = {
+    foods_search: {
+      results: {
+        food: [
+          { food_id: '1', servings: { serving: [{ serving_id: '7', calories: '92', protein: '3', iron: '0.8', sodium: '4' }] } },
+          { food_id: '2', servings: { serving: { serving_id: '8', fat: '1', vitamin_c: '0' } } },
+        ],
+      },
+    },
+  };
+  assert.deepEqual(trimSearchServings(data), {
+    foods_search: {
+      results: {
+        food: [
+          { food_id: '1', servings: { serving: [{ serving_id: '7', calories: '92', protein: '3' }] } },
+          { food_id: '2', servings: { serving: { serving_id: '8', fat: '1' } } },
+        ],
+      },
+    },
+  });
+});
+
+test('trimSearchServings leaves v1 results and empty searches alone', () => {
+  const v1 = { foods: { food: [{ food_id: '1', food_description: 'Per 100g - Calories: 92kcal' }] } };
+  assert.deepEqual(trimSearchServings(v1), v1);
+  assert.deepEqual(trimSearchServings({ foods_search: { results: null } }), { foods_search: { results: null } });
 });
