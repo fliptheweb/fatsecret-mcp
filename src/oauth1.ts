@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { resilientFetch } from './http.js';
 
 export interface OAuth1Credentials {
   consumerKey: string;
@@ -89,7 +90,7 @@ export async function requestToken(
   const params = buildOAuth1Params('GET', REQUEST_TOKEN_URL, credentials, { oauth_callback: 'oob' });
   const qs = new URLSearchParams(params).toString();
 
-  const response = await fetch(`${REQUEST_TOKEN_URL}?${qs}`, {
+  const response = await resilientFetch(`${REQUEST_TOKEN_URL}?${qs}`, {
     method: 'GET',
   });
 
@@ -129,7 +130,7 @@ export async function accessToken(
   const params = buildOAuth1Params('GET', ACCESS_TOKEN_URL, tokenCredentials, { oauth_verifier: verifier });
   const qs = new URLSearchParams(params).toString();
 
-  const response = await fetch(`${ACCESS_TOKEN_URL}?${qs}`, {
+  const response = await resilientFetch(`${ACCESS_TOKEN_URL}?${qs}`, {
     method: 'GET',
   });
 

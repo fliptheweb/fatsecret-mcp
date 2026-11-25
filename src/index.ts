@@ -14,6 +14,7 @@ import { buildFoodsSearchV1Query, ignoredV1Options, isMissingScopeError, trimSea
 import { buildOAuth1Params, requestToken, accessToken, type OAuth1Credentials } from './oauth1.js';
 import { detectOAuth2Token, fetchOAuth2Token, hasPremierScope, hasScope } from './oauth2.js';
 import { resolveImageB64 } from './image.js';
+import { resilientFetch } from './http.js';
 import { asArray, chooseServing, dayTotals, type Serving } from './meal.js';
 import { result, toolResult } from './response.js';
 import * as schemas from './schemas.js';
@@ -60,7 +61,7 @@ class FatSecretMcpServer {
     this.loadConfig();
 
     // Public API client with OAuth 2.0
-    this.publicClient = createClient<PublicPaths>({ baseUrl: BASE_URL });
+    this.publicClient = createClient<PublicPaths>({ baseUrl: BASE_URL, fetch: resilientFetch });
     const oauth2Middleware: Middleware = {
       onRequest: async ({ request }) => {
         const token = await this.getOAuth2Token();
@@ -74,7 +75,7 @@ class FatSecretMcpServer {
     this.publicClient.use(oauth2Middleware);
 
     // Profile API client with OAuth 1.0 (params in query string, not Authorization header)
-    this.profileClient = createClient<ProfilePaths>({ baseUrl: BASE_URL });
+    this.profileClient = createClient<ProfilePaths>({ baseUrl: BASE_URL, fetch: resilientFetch });
     const oauth1Middleware: Middleware = {
       onRequest: async ({ request }) => {
         this.ensureProfileAuth();
@@ -219,8 +220,8 @@ class FatSecretMcpServer {
   private async requestOAuth2Token(): Promise<string> {
     // After the first token we know which scope the key is entitled to, so refreshes take one request
     const { accessToken: token, expiresIn, scope } = this.oauth2Scope
-      ? await fetchOAuth2Token(this.clientId, this.clientSecret, [this.oauth2Scope])
-      : await detectOAuth2Token(this.clientId, this.clientSecret);
+      ? await fetchOAuth2Token(this.clientId, this.clientSecret, [this.oauth2Scope], resilientFetch)
+      : await detectOAuth2Token(this.clientId, this.clientSecret, resilientFetch);
     this.oauth2Scope = scope;
     this.oauth2Token = token;
     this.oauth2TokenExpiry = Date.now() + (expiresIn - 60) * 1000;
@@ -250,7 +251,7 @@ class FatSecretMcpServer {
   // POST a JSON body with the OAuth 2.0 token (NLP, image recognition)
   private async postPublicJson(path: string, body: unknown): Promise<unknown> {
     const token = await this.getOAuth2Token();
-    const response = await fetch(`${BASE_URL}${path}`, {
+    const response = await resilientFetch(`${BASE_URL}${path}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -267,7 +268,7 @@ class FatSecretMcpServer {
       if (value !== undefined) params[key] = String(value);
     }
     const signed = buildOAuth1Params(method, url, this.oauth1Credentials, params);
-    const response = await fetch(`${url}?${new URLSearchParams(signed)}`, { method });
+    const response = await resilientFetch(`${url}?${new URLSearchParams(signed)}`, { method });
     return FatSecretMcpServer.parseJson(response);
   }
 
