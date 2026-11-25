@@ -13,3 +13,4 @@ tsconfig.tsbuildinfo
 .claude/
 .mcpregistry_github_token
 .mcpregistry_registry_token
+data

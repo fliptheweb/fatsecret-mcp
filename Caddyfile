@@ -1,0 +1,8 @@
+# Only /<MCP_SECRET>/mcp reaches the server: remote MCP connectors (Claude.ai, ChatGPT)
+# can't send auth headers, so the secret path is the access control.
+{$DOMAIN} {
+	handle_path /{$MCP_SECRET}/* {
+		reverse_proxy mcp:8000
+	}
+	respond 404
+}

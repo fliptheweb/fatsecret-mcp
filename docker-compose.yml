@@ -1,0 +1,21 @@
+services:
+  mcp:
+    build: .
+    env_file: .env
+    volumes:
+      - ./data:/home/node/.fatsecret-mcp
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
