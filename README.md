@@ -221,6 +221,16 @@ Caddy issues HTTPS automatically and proxies only `https://<DOMAIN>/<MCP_SECRET>
 
 Profile tokens persist in `./data`, so `setup_credentials` and favorites survive restarts and rebuilds.
 
+### 🚀 Deploy to VPS
+
+Single source of truth is this repo — never edit code on the server. The server copy is a clean mirror (`git reset --hard`; `.env` and `./data` are git-ignored and survive).
+
+```sh
+VPS_SSH=user@host VPS_DIR=/root/fatsecret-mcp npm run deploy
+```
+
+This pushes the current branch, then on the server pulls it, rebuilds and restarts (`docker compose`, or legacy `docker-compose` if v2 is missing). Export `VPS_SSH`/`VPS_DIR` in your shell rc to run bare `npm run deploy`. On a tiny VPS: `docker builder prune -af` if a build runs out of disk, add swap if the build OOMs.
+
 ## 🔧 Development
 
 1. Clone the repository

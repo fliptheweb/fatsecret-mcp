@@ -1,6 +1,7 @@
 services:
   mcp:
     build: .
+    image: fatsecret-mcp:latest
     env_file: .env
     volumes:
       - ./data:/home/node/.fatsecret-mcp

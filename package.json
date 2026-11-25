@@ -34,6 +34,7 @@
     "format": "prettier --write src/**/*.ts",
     "type-check": "tsc --noEmit",
     "generate": "tsx scripts/generate.ts",
+    "deploy": "sh scripts/deploy.sh",
     "version": "node scripts/bump-version.cjs && git add manifest.json server.json"
   },
   "keywords": [
