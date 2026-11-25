@@ -2,6 +2,8 @@ node_modules/
 dist/
 .env
 *.mcpb
+fatsecret-mcp.zip
+mcpb-build/
 .DS_Store
 schemas/*
 !schemas/.gitkeep

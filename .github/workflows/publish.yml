@@ -21,7 +21,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24.x"
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: npm ci
@@ -35,31 +34,32 @@ jobs:
       - name: Publish to NPM
         run: npm publish --access public --provenance
 
-      - name: Build MCPB bundle
-        run: |
-          npm install -g @anthropic-ai/mcpb
-          mkdir -p mcpb-staging/server
-          cp -r dist/* mcpb-staging/server/
-          cp manifest.json mcpb-staging/
-          cp package.json mcpb-staging/
-          cd mcpb-staging && npm install --omit=dev && cd ..
-          mcpb pack mcpb-staging fatsecret-mcp.mcpb
+      - name: Pack MCPB bundle
+        run: npm run pack:mcpb
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: fatsecret-mcp.mcpb
+          files: |
+            fatsecret-mcp.mcpb
+            fatsecret-mcp.zip
 
       - name: Install MCP Publisher
         continue-on-error: true
         run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v1.4.0/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v1.7.9/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
 
       - name: Login to MCP Registry
         continue-on-error: true
         run: ./mcp-publisher login github-oidc
 
+      # The registry rejects the publish until npm serves the new version, which takes a short time after npm publish.
       - name: Publish to MCP Registry
         continue-on-error: true
-        run: ./mcp-publisher publish
+        uses: nick-fields/retry@v4
+        with:
+          command: ./mcp-publisher publish
+          max_attempts: 10
+          retry_wait_seconds: 30
+          timeout_minutes: 2
